@@ -14,6 +14,10 @@ RUN npm ci
 
 COPY . .
 
-RUN mkdir -p /app/sessions
+RUN mkdir -p /app/sessions \
+  && chown -R node:node /app
+
+# claude --dangerously-skip-permissions refuses to run as root
+USER node
 
 CMD ["npm", "start"]
