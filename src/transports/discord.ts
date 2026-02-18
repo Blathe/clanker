@@ -1,19 +1,13 @@
 import type { ProcessTurn, SendFn } from "../runtime.js";
+import { getEnv, parseCsvEnvSet } from "../config.js";
 
-function parseIdList(raw: string | undefined): Set<string> {
-  if (!raw) return new Set();
-  return new Set(
-    raw
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-  );
-}
+type DiscordModule = typeof import("discord.js");
+type DiscordMessage = import("discord.js").Message<boolean>;
 
-async function loadDiscordModule(): Promise<any | null> {
+async function loadDiscordModule(): Promise<DiscordModule | null> {
   try {
     const moduleName = "discord.js";
-    return await import(moduleName);
+    return (await import(moduleName)) as DiscordModule;
   } catch {
     return null;
   }
@@ -32,7 +26,7 @@ function splitDiscordMessage(text: string, maxLen = 1900): string[] {
 }
 
 export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boolean> {
-  const token = process.env.DISCORD_BOT_TOKEN;
+  const token = getEnv("DISCORD_BOT_TOKEN");
   if (!token) {
     console.log("Discord transport: disabled (DISCORD_BOT_TOKEN not set).");
     return false;
@@ -44,8 +38,8 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
     return false;
   }
 
-  const allowedUsers = parseIdList(process.env.DISCORD_ALLOWED_USER_IDS);
-  const allowedChannels = parseIdList(process.env.DISCORD_ALLOWED_CHANNEL_IDS);
+  const allowedUsers = parseCsvEnvSet("DISCORD_ALLOWED_USER_IDS");
+  const allowedChannels = parseCsvEnvSet("DISCORD_ALLOWED_CHANNEL_IDS");
 
   const client = new discord.Client({
     intents: [
@@ -57,11 +51,11 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
     partials: [discord.Partials.Channel],
   });
 
-  client.on(discord.Events.ClientReady, (readyClient: { user: { tag: string } }) => {
+  client.on(discord.Events.ClientReady, (readyClient) => {
     console.log(`Discord transport: connected as ${readyClient.user.tag}`);
   });
 
-  client.on(discord.Events.MessageCreate, async (message: any) => {
+  client.on(discord.Events.MessageCreate, async (message: DiscordMessage) => {
     if (message.author?.bot) return;
 
     if (allowedUsers.size > 0 && !allowedUsers.has(message.author.id)) return;
@@ -91,7 +85,7 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
     try {
       await processTurn(sessionId, "discord", content, send);
     } catch (err) {
-      await message.reply(`Error: ${err}`);
+      await message.reply(`Error: ${String(err)}`);
     }
   });
 

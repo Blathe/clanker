@@ -10,6 +10,7 @@ import { runDiscordTransport } from "./transports/discord.js";
 import { runReplTransport } from "./transports/repl.js";
 import type { Channel, SendFn } from "./runtime.js";
 import { handleTurnAction, type DelegateResult } from "./turnHandlers.js";
+import { envFlagEnabled } from "./config.js";
 import {
   initLogger,
   logUserInput,
@@ -112,12 +113,6 @@ function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
       resolve({ exitCode: code ?? 1, summary });
     });
   });
-}
-
-function envFlagEnabled(name: string): boolean {
-  const raw = process.env[name];
-  if (!raw) return false;
-  return /^(1|true|yes|on)$/i.test(raw.trim());
 }
 
 const DISCORD_UNSAFE_ENABLE_WRITES = envFlagEnabled("DISCORD_UNSAFE_ENABLE_WRITES");

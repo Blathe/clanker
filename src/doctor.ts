@@ -1,34 +1,4 @@
-function getEnv(name: string): string | undefined {
-  const value = process.env[name];
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function isDiscordSnowflake(value: string): boolean {
-  return /^[0-9]{17,20}$/.test(value);
-}
-
-function parseCsvIds(name: string): { values: string[]; invalid: string[] } {
-  const raw = getEnv(name);
-  if (!raw) return { values: [], invalid: [] };
-
-  const values = raw
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  const invalid = values.filter((v) => !isDiscordSnowflake(v));
-  return { values, invalid };
-}
-
-function parseBoolFlag(name: string): { enabled: boolean; valid: boolean } {
-  const raw = getEnv(name);
-  if (!raw) return { enabled: false, valid: true };
-  if (/^(1|true|yes|on)$/i.test(raw)) return { enabled: true, valid: true };
-  if (/^(0|false|no|off)$/i.test(raw)) return { enabled: false, valid: true };
-  return { enabled: false, valid: false };
-}
+import { getEnv, parseDiscordIdCsv, parseBoolFlag } from "./config.js";
 
 function printOk(message: string): void {
   console.log(`OK   ${message}`);
@@ -62,8 +32,8 @@ function main(): void {
     printOk("DISCORD_BOT_TOKEN is set.");
   }
 
-  const allowedUsers = parseCsvIds("DISCORD_ALLOWED_USER_IDS");
-  const allowedChannels = parseCsvIds("DISCORD_ALLOWED_CHANNEL_IDS");
+  const allowedUsers = parseDiscordIdCsv("DISCORD_ALLOWED_USER_IDS");
+  const allowedChannels = parseDiscordIdCsv("DISCORD_ALLOWED_CHANNEL_IDS");
   const discordUnsafeWrites = parseBoolFlag("DISCORD_UNSAFE_ENABLE_WRITES");
 
   if (allowedUsers.invalid.length > 0) {
