@@ -102,6 +102,12 @@ function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
       env,
     });
 
+    const DELEGATE_TIMEOUT_MS = 3 * 60 * 1000;
+    const timeout = setTimeout(() => {
+      proc.kill();
+      reject(new Error("Delegation timed out after 3 minutes"));
+    }, DELEGATE_TIMEOUT_MS);
+
     const chunks: string[] = [];
 
     proc.stdout.on("data", (chunk: Buffer) => {
@@ -111,8 +117,9 @@ function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
     });
 
     proc.stderr.on("data", (chunk: Buffer) => process.stderr.write(chunk));
-    proc.on("error", reject);
+    proc.on("error", (err) => { clearTimeout(timeout); reject(err); });
     proc.on("close", (code) => {
+      clearTimeout(timeout);
       const full = chunks.join("");
       const summary = full.slice(-800).trim();
       resolve({ exitCode: code ?? 1, summary });
@@ -180,6 +187,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
     logUserInput(`[${channel}:${sessionId}] ${userInput}`);
 
     let safetyCounter = 0;
+    let broke = false;
     while (safetyCounter < 8) {
       safetyCounter += 1;
 
@@ -208,7 +216,12 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
       if (outcome === "continue") {
         continue;
       }
+      broke = true;
       break;
+    }
+
+    if (!broke) {
+      await send("I reached the action limit for this turn without a final response. Please try again.");
     }
 
     addTopic(channel, userInput);

@@ -55,17 +55,14 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
     const { exitCode, summary } = await ctx.delegateToClaude(ctx.response.prompt);
     logDelegate(exitCode, summary.length);
     await ctx.send(`[CLAUDE DONE] Exit code: ${exitCode}`);
-    pushUserHistory(
-      ctx.history,
-      `Claude completed the task (exit code: ${exitCode}).\nSummary: ${summary || "No summary provided."}`
-    );
+    if (summary) await ctx.send(summary);
+    return "break";
   } catch (err) {
     const msg = `[DELEGATE ERROR] ${err}`;
     await ctx.send(msg);
     pushUserHistory(ctx.history, `Claude failed to run: ${err}`);
+    return "continue";
   }
-
-  return "continue";
 }
 
 async function handleEditAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
