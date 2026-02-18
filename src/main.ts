@@ -234,7 +234,7 @@ function printStartupBanner(): void {
     console.log("Claude delegation is disabled (ENABLE_CLAUDE_DELEGATE is not set).");
   }
   if (DISCORD_UNSAFE_ENABLE_WRITES) {
-    console.log("WARNING: DISCORD_UNSAFE_ENABLE_WRITES is enabled. Discord can trigger write/delegate actions.");
+    console.log("WARNING: DISCORD_UNSAFE_ENABLE_WRITES is enabled. Discord can trigger write actions.");
   }
   if (REPL_INTERACTIVE_AVAILABLE) {
     console.log("Type /help for local REPL slash commands.\n");

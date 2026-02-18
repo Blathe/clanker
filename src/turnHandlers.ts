@@ -48,18 +48,6 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
     return "continue";
   }
 
-  if (ctx.channel === "discord" && !ctx.discordUnsafeEnableWrites) {
-    pushUserHistory(
-      ctx.history,
-      "Delegate actions are disabled from Discord. Provide a message response or a read-only command."
-    );
-    return "continue";
-  }
-
-  if (ctx.channel === "discord" && ctx.discordUnsafeEnableWrites) {
-    await ctx.send("[UNSAFE MODE] Executing delegate action from Discord.");
-  }
-
   await ctx.send(ctx.response.explanation);
   await ctx.send("[DELEGATING TO CLAUDE]");
 
@@ -72,6 +60,8 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
       `Claude completed the task (exit code: ${exitCode}).\nSummary: ${summary || "No summary provided."}`
     );
   } catch (err) {
+    const msg = `[DELEGATE ERROR] ${err}`;
+    await ctx.send(msg);
     pushUserHistory(ctx.history, `Claude failed to run: ${err}`);
   }
 

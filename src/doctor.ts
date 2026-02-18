@@ -73,7 +73,7 @@ function main(): void {
     printFail("DISCORD_UNSAFE_ENABLE_WRITES must be one of: 1,true,yes,on,0,false,no,off.");
     hasFailure = true;
   } else if (discordUnsafeWrites.enabled) {
-    printWarn("DISCORD_UNSAFE_ENABLE_WRITES is enabled. Discord users can trigger write/delegate actions.");
+    printWarn("DISCORD_UNSAFE_ENABLE_WRITES is enabled. Discord users can trigger write actions.");
   } else {
     printOk("DISCORD_UNSAFE_ENABLE_WRITES is disabled.");
   }
