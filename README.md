@@ -12,7 +12,7 @@ A security-focused TypeScript CLI agent that runs interactive chat over local RE
 - **Persistent Memory** — Agent reads `MEMORY.md` at startup to retain knowledge across sessions
 - **Multi-Transport Chat** — Run local REPL and Discord bot transport in the same process
 - **Passphrase Protection** — Sensitive operations (writes, moves, etc.) require authentication
-- **Claude Delegation** — Complex programming tasks can be delegated to Claude Code for execution
+- **Claude Delegation (Optional)** — Complex programming tasks can be delegated to Claude Code when enabled
 - **Environment Doctor** — Validate your configuration before startup with `npm run doctor`
 
 ## Quick Start
@@ -70,16 +70,19 @@ npx tsc --noEmit   # Type-check
 Build and run with Docker Compose:
 
 ```bash
+PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH" \
 docker compose up --build
 ```
 
-Defaults in `docker-compose.yml` run Discord-only transport (`CLANKER_TRANSPORTS=discord`) for daemon mode. Session logs are persisted via `./sessions:/app/sessions`.
+Defaults in `docker-compose.yml` run Discord-only transport (`CLANKER_TRANSPORTS=discord`) for daemon mode. Session logs are persisted via `./sessions:/app/sessions`. Environment variables are loaded from `.env` via Compose `env_file`, so you do not need to re-enter them for each new container.
 
 If you want REPL inside the container, run with TTY and stdin open:
 
 ```bash
 docker run --rm -it --env-file .env -e CLANKER_TRANSPORTS=repl,discord clanker:dev
 ```
+
+If `repl` is enabled but container has no interactive TTY (for example, detached mode), Clanker automatically skips REPL and continues with Discord transport.
 
 Pass `--version` or `-v` to print the current version and exit:
 
@@ -118,14 +121,16 @@ Rules are evaluated in order; first match wins. Default action is **block**.
 |------|-------------|
 | `CLANKER_TRANSPORTS` | Comma-separated transports: `repl`, `discord`, or both |
 | `ENABLE_CLAUDE_DELEGATE` | Enables delegate actions that invoke the `claude` CLI |
+| `DISCORD_UNSAFE_ENABLE_WRITES` | Allows Discord-triggered write/delegate actions (unsafe) |
 | `SHELL_BIN` | Optional shell path override used by command execution |
 
 | Rule | Matches | Action |
 |------|---------|--------|
-| `allow-reads` | ls, cat, grep, head, tail, find | Allow |
+| `allow-reads` | ls, cat, grep, head, tail, find, pwd, echo, which, env | Allow |
 | `block-network` | curl, wget, nc, ssh, scp | Block |
 | `block-rm-rf` | `rm -rf` patterns | Block |
 | `secret-for-write` | tee, mv, cp, mkdir, touch, chmod, dd, redirects | Requires passphrase |
+| `blocked-shell-commands` | ps | Block |
 
 **Default passphrase:** `mypassphrase`
 
@@ -191,8 +196,9 @@ Session files are stored in `sessions/` (git-ignored) and follow the pattern `YY
 $ npm start
 
 Clanker — security-focused agent.
-REPL and Discord transports can run together.
+Enabled transports: repl, discord
 Default passphrase for write operations: mypassphrase
+Claude delegation is disabled (ENABLE_CLAUDE_DELEGATE is not set).
 Type /help for local REPL slash commands.
 
 > list files in current directory

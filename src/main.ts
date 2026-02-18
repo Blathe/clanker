@@ -123,6 +123,7 @@ function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
 const DISCORD_UNSAFE_ENABLE_WRITES = envFlagEnabled("DISCORD_UNSAFE_ENABLE_WRITES");
 const ENABLE_CLAUDE_DELEGATE = envFlagEnabled("ENABLE_CLAUDE_DELEGATE");
 const TRANSPORTS = parseTransportsDetailed("CLANKER_TRANSPORTS");
+const REPL_INTERACTIVE_AVAILABLE = TRANSPORTS.repl && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 const runtimeLabel =
   process.platform === "win32"
     ? "the user's Windows PC via Git Bash"
@@ -235,7 +236,7 @@ function printStartupBanner(): void {
   if (DISCORD_UNSAFE_ENABLE_WRITES) {
     console.log("WARNING: DISCORD_UNSAFE_ENABLE_WRITES is enabled. Discord can trigger write/delegate actions.");
   }
-  if (TRANSPORTS.repl) {
+  if (REPL_INTERACTIVE_AVAILABLE) {
     console.log("Type /help for local REPL slash commands.\n");
   } else {
     console.log("Running in headless mode (REPL disabled).\n");
@@ -275,7 +276,13 @@ async function main(): Promise<void> {
     discordStarted = await runDiscordTransport(processTurn);
   }
 
-  if (TRANSPORTS.repl) {
+  const replRequested = TRANSPORTS.repl;
+  const replAvailable = REPL_INTERACTIVE_AVAILABLE;
+  if (replRequested && !replAvailable) {
+    console.log("REPL requested but no interactive TTY is available. Skipping REPL transport.");
+  }
+
+  if (replAvailable) {
     await runReplTransport({
       rl,
       prompt,
@@ -287,7 +294,7 @@ async function main(): Promise<void> {
   }
 
   if (!discordStarted) {
-    throw new Error("Discord transport is enabled but failed to start.");
+    throw new Error("No active transport is running. Check CLANKER_TRANSPORTS and TTY availability.");
   }
 
   await new Promise<void>(() => {
