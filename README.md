@@ -1,6 +1,6 @@
 # Clanker
 
-![Clanker security-focused CLI agent with policy-gated command execution architecture](https://imgur.com/a/ZpuUcLa)
+![Clanker security-focused CLI agent with policy-gated command execution architecture](https://i.imgur.com/bLcHAB0.png)
 
 A security-focused TypeScript CLI agent that runs an interactive chat with Claude, with every proposed action filtered through a **Policy Gate** before execution.
 
