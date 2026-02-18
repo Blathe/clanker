@@ -84,6 +84,17 @@ docker run --rm -it --env-file .env -e CLANKER_TRANSPORTS=repl,discord clanker:d
 
 If `repl` is enabled but container has no interactive TTY (for example, detached mode), Clanker automatically skips REPL and continues with Discord transport.
 
+#### Claude Code delegation in Docker
+
+The image includes the `claude` CLI installed globally. To enable delegation, add the following to your `.env`:
+
+```
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+ENABLE_CLAUDE_DELEGATE=1
+```
+
+`ENABLE_CLAUDE_DELEGATE` is intentionally not hardcoded in `docker-compose.yml` so `.env` controls it.
+
 Pass `--version` or `-v` to print the current version and exit:
 
 ```bash
