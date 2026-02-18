@@ -1,0 +1,17 @@
+{
+  "name": "clanker",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env --import tsx src/main.ts",
+    "dev": "node --env-file=.env --watch --import tsx src/main.ts"
+  },
+  "dependencies": {
+    "openai": "^4.85.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
