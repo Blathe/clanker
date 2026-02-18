@@ -38,3 +38,35 @@ export function parseBoolFlag(name: string): { enabled: boolean; valid: boolean 
 export function envFlagEnabled(name: string): boolean {
   return parseBoolFlag(name).enabled;
 }
+
+export interface TransportConfig {
+  repl: boolean;
+  discord: boolean;
+}
+
+export interface ParsedTransports extends TransportConfig {
+  invalid: string[];
+}
+
+export function parseTransportsDetailed(name: string): ParsedTransports {
+  const raw = getEnv(name);
+  if (!raw) return { repl: true, discord: true, invalid: [] };
+
+  const entries = raw
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const values = new Set(entries);
+  const invalid = entries.filter((value) => value !== "repl" && value !== "discord");
+
+  return {
+    repl: values.has("repl"),
+    discord: values.has("discord"),
+    invalid,
+  };
+}
+
+export function parseTransports(name: string): TransportConfig {
+  const parsed = parseTransportsDetailed(name);
+  return { repl: parsed.repl, discord: parsed.discord };
+}

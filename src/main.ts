@@ -10,7 +10,7 @@ import { runDiscordTransport } from "./transports/discord.js";
 import { runReplTransport } from "./transports/repl.js";
 import type { Channel, SendFn } from "./runtime.js";
 import { handleTurnAction, type DelegateResult } from "./turnHandlers.js";
-import { envFlagEnabled } from "./config.js";
+import { envFlagEnabled, parseTransportsDetailed } from "./config.js";
 import {
   initLogger,
   logUserInput,
@@ -88,6 +88,11 @@ function promptSecret(question: string): Promise<string> {
 
 function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
   return new Promise((resolve, reject) => {
+    if (!ENABLE_CLAUDE_DELEGATE) {
+      reject(new Error("Claude delegation is disabled. Set ENABLE_CLAUDE_DELEGATE=1 to enable it."));
+      return;
+    }
+
     const env = { ...process.env };
     delete env.CLAUDECODE;
 
@@ -116,7 +121,15 @@ function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
 }
 
 const DISCORD_UNSAFE_ENABLE_WRITES = envFlagEnabled("DISCORD_UNSAFE_ENABLE_WRITES");
-const { systemPrompt: SYSTEM_PROMPT, lastSession: LAST_SESSION } = loadRuntimePromptContext();
+const ENABLE_CLAUDE_DELEGATE = envFlagEnabled("ENABLE_CLAUDE_DELEGATE");
+const TRANSPORTS = parseTransportsDetailed("CLANKER_TRANSPORTS");
+const runtimeLabel =
+  process.platform === "win32"
+    ? "the user's Windows PC via Git Bash"
+    : process.platform === "darwin"
+      ? "the user's macOS machine"
+      : "a Linux environment";
+const { systemPrompt: SYSTEM_PROMPT, lastSession: LAST_SESSION } = loadRuntimePromptContext(runtimeLabel);
 
 interface SessionState {
   history: ChatCompletionMessageParam[];
@@ -187,6 +200,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         response,
         history: state.history,
         discordUnsafeEnableWrites: DISCORD_UNSAFE_ENABLE_WRITES,
+        delegateEnabled: ENABLE_CLAUDE_DELEGATE,
         promptSecret,
         delegateToClaude,
       });
@@ -209,12 +223,23 @@ function endSession(): void {
 
 function printStartupBanner(): void {
   console.log("Clanker — security-focused agent.");
-  console.log("REPL and Discord transports can run together.");
+  const enabledTransports = [
+    ...(TRANSPORTS.repl ? ["repl"] : []),
+    ...(TRANSPORTS.discord ? ["discord"] : []),
+  ];
+  console.log(`Enabled transports: ${enabledTransports.join(", ")}`);
   console.log("Default passphrase for write operations: mypassphrase");
+  if (!ENABLE_CLAUDE_DELEGATE) {
+    console.log("Claude delegation is disabled (ENABLE_CLAUDE_DELEGATE is not set).");
+  }
   if (DISCORD_UNSAFE_ENABLE_WRITES) {
     console.log("WARNING: DISCORD_UNSAFE_ENABLE_WRITES is enabled. Discord can trigger write/delegate actions.");
   }
-  console.log("Type /help for local REPL slash commands.\n");
+  if (TRANSPORTS.repl) {
+    console.log("Type /help for local REPL slash commands.\n");
+  } else {
+    console.log("Running in headless mode (REPL disabled).\n");
+  }
 
   if (LAST_SESSION) {
     const preview = LAST_SESSION
@@ -235,14 +260,38 @@ process.on("SIGINT", () => {
 });
 
 async function main(): Promise<void> {
+  if (TRANSPORTS.invalid.length > 0) {
+    throw new Error(`Invalid CLANKER_TRANSPORTS value(s): ${TRANSPORTS.invalid.join(", ")}`);
+  }
+
+  if (!TRANSPORTS.repl && !TRANSPORTS.discord) {
+    throw new Error("No transports enabled. Set CLANKER_TRANSPORTS to repl,discord, or both.");
+  }
+
   printStartupBanner();
-  await runDiscordTransport(processTurn);
-  await runReplTransport({
-    rl,
-    prompt,
-    processTurn,
-    clearSession,
-    endSession,
+
+  let discordStarted = false;
+  if (TRANSPORTS.discord) {
+    discordStarted = await runDiscordTransport(processTurn);
+  }
+
+  if (TRANSPORTS.repl) {
+    await runReplTransport({
+      rl,
+      prompt,
+      processTurn,
+      clearSession,
+      endSession,
+    });
+    return;
+  }
+
+  if (!discordStarted) {
+    throw new Error("Discord transport is enabled but failed to start.");
+  }
+
+  await new Promise<void>(() => {
+    // Keep process alive for daemon mode when REPL is disabled.
   });
 }
 

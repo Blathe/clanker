@@ -24,6 +24,7 @@ interface TurnActionContext {
   response: LLMResponse;
   history: ChatCompletionMessageParam[];
   discordUnsafeEnableWrites: boolean;
+  delegateEnabled: boolean;
   promptSecret: (question: string) => Promise<string>;
   delegateToClaude: (delegatePrompt: string) => Promise<DelegateResult>;
 }
@@ -40,6 +41,12 @@ async function handleMessageAction(ctx: TurnActionContext): Promise<TurnActionOu
 
 async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
   if (ctx.response.type !== "delegate") return "continue";
+
+  if (!ctx.delegateEnabled) {
+    await ctx.send("Delegation is disabled in this runtime.");
+    pushUserHistory(ctx.history, "Delegate action denied: delegation is disabled.");
+    return "continue";
+  }
 
   if (ctx.channel === "discord" && !ctx.discordUnsafeEnableWrites) {
     pushUserHistory(

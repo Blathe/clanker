@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "node --env-file=.env --import tsx src/main.ts",
-    "dev": "node --env-file=.env --watch --import tsx src/main.ts",
-    "doctor": "node --env-file=.env --import tsx src/doctor.ts"
+    "start": "node --env-file-if-exists=.env --import tsx src/main.ts",
+    "dev": "node --env-file-if-exists=.env --watch --import tsx src/main.ts",
+    "doctor": "node --env-file-if-exists=.env --import tsx src/doctor.ts"
   },
   "dependencies": {
     "discord.js": "^14.21.0",

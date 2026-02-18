@@ -1,4 +1,9 @@
-import { getEnv, parseDiscordIdCsv, parseBoolFlag } from "./config.js";
+import {
+  getEnv,
+  parseDiscordIdCsv,
+  parseBoolFlag,
+  parseTransportsDetailed,
+} from "./config.js";
 
 function printOk(message: string): void {
   console.log(`OK   ${message}`);
@@ -35,6 +40,8 @@ function main(): void {
   const allowedUsers = parseDiscordIdCsv("DISCORD_ALLOWED_USER_IDS");
   const allowedChannels = parseDiscordIdCsv("DISCORD_ALLOWED_CHANNEL_IDS");
   const discordUnsafeWrites = parseBoolFlag("DISCORD_UNSAFE_ENABLE_WRITES");
+  const delegateEnabled = parseBoolFlag("ENABLE_CLAUDE_DELEGATE");
+  const transports = parseTransportsDetailed("CLANKER_TRANSPORTS");
 
   if (allowedUsers.invalid.length > 0) {
     printFail(
@@ -69,6 +76,31 @@ function main(): void {
     printWarn("DISCORD_UNSAFE_ENABLE_WRITES is enabled. Discord users can trigger write/delegate actions.");
   } else {
     printOk("DISCORD_UNSAFE_ENABLE_WRITES is disabled.");
+  }
+
+  if (!delegateEnabled.valid) {
+    printFail("ENABLE_CLAUDE_DELEGATE must be one of: 1,true,yes,on,0,false,no,off.");
+    hasFailure = true;
+  } else if (delegateEnabled.enabled) {
+    printOk("ENABLE_CLAUDE_DELEGATE is enabled.");
+  } else {
+    printWarn("ENABLE_CLAUDE_DELEGATE is disabled. Delegate actions will be blocked.");
+  }
+
+  if (transports.invalid.length > 0) {
+    printFail(`CLANKER_TRANSPORTS contains invalid value(s): ${transports.invalid.join(", ")}`);
+    hasFailure = true;
+  } else {
+    const enabled = [
+      ...(transports.repl ? ["repl"] : []),
+      ...(transports.discord ? ["discord"] : []),
+    ];
+    if (enabled.length === 0) {
+      printFail("CLANKER_TRANSPORTS disables all transports. Enable at least one of repl or discord.");
+      hasFailure = true;
+    } else {
+      printOk(`CLANKER_TRANSPORTS enabled: ${enabled.join(", ")}.`);
+    }
   }
 
   if (hasFailure) {

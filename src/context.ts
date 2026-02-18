@@ -107,12 +107,12 @@ function loadLastSession(): string {
   );
 }
 
-export function loadRuntimePromptContext(): { systemPrompt: string; lastSession: string } {
+export function loadRuntimePromptContext(runtimeLabel: string): { systemPrompt: string; lastSession: string } {
   const soul = loadSoul();
   const memory = loadMemory();
   const lastSession = loadLastSession();
 
-  const systemPrompt = `${soul}${memory}${lastSession}You are a local system agent running on the user's Windows PC via Git Bash.
+  const systemPrompt = `${soul}${memory}${lastSession}You are a local system agent running on ${runtimeLabel}.
 Express your personality above through the "explanation" fields — that's where your voice lives. The outer structure must always be valid JSON.
 Respond with a JSON object in one of these four formats:
 

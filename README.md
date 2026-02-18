@@ -38,6 +38,8 @@ export DISCORD_BOT_TOKEN=your_bot_token
 export DISCORD_ALLOWED_USER_IDS=123456789012345678,234567890123456789
 export DISCORD_ALLOWED_CHANNEL_IDS=345678901234567890
 export DISCORD_UNSAFE_ENABLE_WRITES=0
+export CLANKER_TRANSPORTS=repl,discord
+export ENABLE_CLAUDE_DELEGATE=0
 ```
 
 If you want Discord to be able to trigger code-changing actions, set:
@@ -48,6 +50,12 @@ export DISCORD_UNSAFE_ENABLE_WRITES=1
 
 This is intentionally unsafe and should only be used with strict user/channel allowlists.
 
+If you need headless container operation, use:
+
+```bash
+export CLANKER_TRANSPORTS=discord
+```
+
 ### Run
 
 ```bash
@@ -55,6 +63,22 @@ npm start          # Run the agent
 npm run dev        # Run with file watching
 npm run doctor     # Validate environment/config before startup
 npx tsc --noEmit   # Type-check
+```
+
+### Docker (macOS-friendly)
+
+Build and run with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+Defaults in `docker-compose.yml` run Discord-only transport (`CLANKER_TRANSPORTS=discord`) for daemon mode. Session logs are persisted via `./sessions:/app/sessions`.
+
+If you want REPL inside the container, run with TTY and stdin open:
+
+```bash
+docker run --rm -it --env-file .env -e CLANKER_TRANSPORTS=repl,discord clanker:dev
 ```
 
 Pass `--version` or `-v` to print the current version and exit:
@@ -87,6 +111,14 @@ The agent responds in one of four structured formats:
 ### Policy Rules (`policy.json`)
 
 Rules are evaluated in order; first match wins. Default action is **block**.
+
+### Runtime Flags
+
+| Variable | Purpose |
+|------|-------------|
+| `CLANKER_TRANSPORTS` | Comma-separated transports: `repl`, `discord`, or both |
+| `ENABLE_CLAUDE_DELEGATE` | Enables delegate actions that invoke the `claude` CLI |
+| `SHELL_BIN` | Optional shell path override used by command execution |
 
 | Rule | Matches | Action |
 |------|---------|--------|

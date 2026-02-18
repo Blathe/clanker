@@ -1,0 +1,13 @@
+services:
+  clanker:
+    build: .
+    image: clanker:dev
+    env_file:
+      - .env
+    environment:
+      CLANKER_TRANSPORTS: discord
+      ENABLE_CLAUDE_DELEGATE: 0
+      DISCORD_UNSAFE_ENABLE_WRITES: 0
+    volumes:
+      - ./sessions:/app/sessions
+    restart: unless-stopped

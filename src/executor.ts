@@ -32,6 +32,11 @@ export function applyEdit(file: string, oldText: string, newText: string): EditR
 const GIT_BASH = "C:/Program Files/Git/bin/bash.exe";
 
 function buildShellArgs(command: string): { shell: string; args: string[] } {
+  const shellOverride = process.env.SHELL_BIN?.trim();
+  if (shellOverride) {
+    return { shell: shellOverride, args: ["-c", command] };
+  }
+
   if (process.platform === "win32") {
     return { shell: GIT_BASH, args: ["-c", command] };
   }
