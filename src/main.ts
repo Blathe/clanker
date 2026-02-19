@@ -209,25 +209,86 @@ interface SessionState {
   busy: boolean;
 }
 
-const sessions = new Map<string, SessionState>();
+const MAX_HISTORY = 50;
+const MAX_SESSIONS = 100;
+const MAX_USER_INPUT = 8000; // characters
+
+/**
+ * Validates user input length to prevent DoS and memory exhaustion
+ */
+export function validateInputLength(input: string): { valid: boolean; error: string | null } {
+  if (!input) {
+    return { valid: false, error: "Input cannot be empty" };
+  }
+
+  if (input.length > MAX_USER_INPUT) {
+    return {
+      valid: false,
+      error: `Input too long (${input.length} characters, max ${MAX_USER_INPUT}). Please keep your message shorter.`,
+    };
+  }
+
+  return { valid: true, error: null };
+}
+
+/**
+ * Trims session history to prevent unbounded memory growth in long-running sessions.
+ * Keeps the system prompt (always at index 0) and the most recent MAX_HISTORY messages.
+ */
+function trimSessionHistory(history: ChatCompletionMessageParam[]): void {
+  if (history.length <= MAX_HISTORY + 1) {
+    return; // +1 for system prompt at index 0
+  }
+
+  // Keep system prompt and the most recent MAX_HISTORY messages
+  const systemPrompt = history[0];
+  const recentMessages = history.slice(-(MAX_HISTORY));
+  history.splice(0, history.length, systemPrompt, ...recentMessages);
+}
+
+/**
+ * Manages sessions with a maximum concurrent limit.
+ * Prevents memory exhaustion from unlimited session creation.
+ */
+class SessionManager {
+  private sessions: Map<string, SessionState> = new Map();
+
+  getSession(sessionId: string): SessionState {
+    const existing = this.sessions.get(sessionId);
+    if (existing) return existing;
+
+    const created: SessionState = {
+      history: [{ role: "system", content: SYSTEM_PROMPT }],
+      busy: false,
+    };
+    this.sessions.set(sessionId, created);
+    return created;
+  }
+
+  hasSession(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
+  }
+
+  isAtLimit(): boolean {
+    return this.sessions.size >= MAX_SESSIONS;
+  }
+
+  getCount(): number {
+    return this.sessions.size;
+  }
+
+  clear(sessionId: string): void {
+    this.sessions.delete(sessionId);
+  }
+}
+
+const sessionManager = new SessionManager();
 const sessionTopics: string[] = [];
 
 initLogger();
 
-function getSession(sessionId: string): SessionState {
-  const existing = sessions.get(sessionId);
-  if (existing) return existing;
-
-  const created: SessionState = {
-    history: [{ role: "system", content: SYSTEM_PROMPT }],
-    busy: false,
-  };
-  sessions.set(sessionId, created);
-  return created;
-}
-
 function clearSession(sessionId: string): void {
-  const state = getSession(sessionId);
+  const state = sessionManager.getSession(sessionId);
   state.history.splice(1);
 }
 
@@ -239,7 +300,13 @@ function addTopic(channel: Channel, userInput: string): void {
 }
 
 async function processTurn(sessionId: string, channel: Channel, userInput: string, send: SendFn): Promise<void> {
-  const state = getSession(sessionId);
+  // Check if session limit is reached and this is a new session
+  if (!sessionManager.hasSession(sessionId) && sessionManager.isAtLimit()) {
+    await send("Server is at maximum capacity. Please try again in a moment.");
+    return;
+  }
+
+  const state = sessionManager.getSession(sessionId);
 
   if (state.busy) {
     await send("I am still processing your previous message for this session. Please wait a moment.");
@@ -292,6 +359,9 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
     }
 
     addTopic(channel, userInput);
+
+    // Trim history to prevent unbounded memory growth in long-running sessions
+    trimSessionHistory(state.history);
   } finally {
     state.busy = false;
   }

@@ -1,5 +1,6 @@
 import type { Interface } from "node:readline";
 import type { ProcessTurn, SendFn } from "../runtime.js";
+import { validateInputLength } from "../main.js";
 
 const REPL_SESSION_ID = "repl:local";
 
@@ -60,6 +61,13 @@ export async function runReplTransport(deps: ReplTransportDeps): Promise<void> {
     }
 
     if (!userInput.trim()) continue;
+
+    // Validate input length
+    const validation = validateInputLength(userInput);
+    if (!validation.valid) {
+      console.log(`\nError: ${validation.error}\n`);
+      continue;
+    }
 
     const send: SendFn = async (text: string) => {
       console.log(`\nClanker: ${text}\n`);

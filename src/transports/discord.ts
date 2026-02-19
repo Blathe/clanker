@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ProcessTurn, SendFn } from "../runtime.js";
 import { getEnv, parseCsvEnvSet } from "../config.js";
+import { validateInputLength } from "../main.js";
 
 type DiscordModule = typeof import("discord.js");
 type DiscordMessage = import("discord.js").Message<boolean>;
@@ -120,6 +121,13 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
       }
     }
     if (!content) return;
+
+    // Validate input length
+    const validation = validateInputLength(content);
+    if (!validation.valid) {
+      await message.reply(`Error: ${validation.error}`);
+      return;
+    }
 
     // Generate or retrieve a cryptographically secure session token for this channel+user pair
     const sessionKey = `${message.channelId}:${message.author.id}`;
