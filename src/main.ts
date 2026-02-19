@@ -107,12 +107,16 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
       options: {
         model: delegateModel,
         tools: { type: "preset", preset: "claude_code" },
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
         canUseTool: async (toolName, toolInput) => {
           const verdict = evaluate(toolName);
+          console.log(`[Delegation] Tool use requested: ${toolName}`, { decision: verdict.decision });
           if (verdict.decision === "allowed") {
             return { behavior: "allow" };
           } else {
             const reason = "reason" in verdict ? verdict.reason : "denied by policy";
+            console.log(`[Delegation] Tool blocked: ${toolName} - ${reason}`);
             return {
               behavior: "deny",
               message: `Tool "${toolName}" is blocked by policy: ${reason}`,
@@ -123,11 +127,16 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
     });
 
     for await (const message of q) {
+      console.log(`[Delegation] Message type: ${message.type}`);
+
       if (message.type === "assistant") {
         const assistantMessage = message.message as { content: Array<{ type: string; text?: string }> };
         for (const block of assistantMessage.content) {
           if (block.type === "text" && block.text) {
+            console.log(`[Delegation] Text response: ${block.text.slice(0, 100)}...`);
             fullResponse += block.text;
+          } else if (block.type === "tool_use") {
+            console.log(`[Delegation] Tool use block detected:`, { toolName: (block as any).name });
           }
         }
       } else if (message.type === "result") {
@@ -138,6 +147,8 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
           result?: string;
           errors?: string[];
         };
+
+        console.log(`[Delegation] Result: subtype=${result.subtype}, turns=${result.num_turns}`);
 
         if (result.subtype === "success") {
           resultMessage = {
@@ -152,6 +163,8 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
             summary: (result.errors ? result.errors.join("\n") : "Unknown error").slice(-800).trim(),
           };
         }
+      } else {
+        console.log(`[Delegation] Other message type:`, message.type);
       }
     }
 
