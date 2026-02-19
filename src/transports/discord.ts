@@ -55,21 +55,53 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
     console.log(`Discord transport: connected as ${readyClient.user.tag}`);
   });
 
+  client.on(discord.Events.ShardDisconnect, (event, shardId) => {
+    console.error(`Discord transport: WebSocket disconnected (shard ${shardId}, code ${event.code})`);
+  });
+
+  client.on(discord.Events.ShardReconnecting, (shardId) => {
+    console.log(`Discord transport: reconnecting (shard ${shardId})...`);
+  });
+
+  client.on(discord.Events.ShardResume, (shardId, replayedEvents) => {
+    console.log(`Discord transport: resumed (shard ${shardId}, replayed ${replayedEvents} events)`);
+  });
+
+  client.on(discord.Events.ShardError, (error, shardId) => {
+    console.error(`Discord transport: shard ${shardId} error:`, error);
+  });
+
   client.on(discord.Events.MessageCreate, async (message: DiscordMessage) => {
     if (message.author?.bot) return;
 
-    if (allowedUsers.size > 0 && !allowedUsers.has(message.author.id)) return;
-    if (allowedChannels.size > 0 && !allowedChannels.has(message.channelId)) return;
+    if (allowedUsers.size > 0 && !allowedUsers.has(message.author.id)) {
+      console.log(`Discord: dropping message from unlisted user ${message.author.id}`);
+      return;
+    }
+    if (allowedChannels.size > 0 && !allowedChannels.has(message.channelId)) {
+      console.log(`Discord: dropping message from unlisted channel ${message.channelId}`);
+      return;
+    }
 
     const botId = client.user?.id;
     const isDM = !message.guildId;
-    const isMentioned = botId ? message.mentions?.users?.has(botId) : false;
-    if (!isDM && !isMentioned) return;
+    const isUserMentioned = botId ? message.mentions?.users?.has(botId) : false;
+    const isRoleMentioned = message.guild?.members.me
+      ? message.mentions.roles.some((r) => message.guild!.members.me!.roles.cache.has(r.id))
+      : false;
+    if (!isDM && !isUserMentioned && !isRoleMentioned) return;
 
     let content = String(message.content ?? "").trim();
     if (botId) {
-      const mentionRegex = new RegExp(`<@!?${botId}>`, "g");
-      content = content.replace(mentionRegex, "").trim();
+      const userMentionRegex = new RegExp(`<@!?${botId}>`, "g");
+      content = content.replace(userMentionRegex, "").trim();
+    }
+    if (message.guild?.members.me) {
+      for (const role of message.mentions.roles.values()) {
+        if (message.guild.members.me.roles.cache.has(role.id)) {
+          content = content.replace(`<@&${role.id}>`, "").trim();
+        }
+      }
     }
     if (!content) return;
 

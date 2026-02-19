@@ -6,8 +6,6 @@ services:
       - .env
     environment:
       CLANKER_TRANSPORTS: discord
-      DISCORD_UNSAFE_ENABLE_WRITES: 0
-      # ENABLE_CLAUDE_DELEGATE is read from .env — set it to 1 there to enable delegation
     volumes:
       - ./sessions:/app/sessions
     restart: unless-stopped
