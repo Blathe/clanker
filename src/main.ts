@@ -1,8 +1,8 @@
 import readline from "node:readline";
-import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
+import Anthropic from "@anthropic-ai/sdk";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import { callLLM } from "./llm.js";
 import { loadRuntimePromptContext } from "./context.js";
@@ -86,45 +86,38 @@ function promptSecret(question: string): Promise<string> {
   });
 }
 
-function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
-  return new Promise((resolve, reject) => {
-    if (!ENABLE_CLAUDE_DELEGATE) {
-      reject(new Error("Claude delegation is disabled. Set ENABLE_CLAUDE_DELEGATE=1 to enable it."));
-      return;
-    }
+async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
+  if (!ENABLE_CLAUDE_DELEGATE) {
+    throw new Error("Claude delegation is disabled. Set ENABLE_CLAUDE_DELEGATE=1 to enable it.");
+  }
 
-    const env = { ...process.env };
-    delete env.CLAUDECODE;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY environment variable is not set for delegation.");
+  }
 
-    const proc = spawn("claude", ["-p", delegatePrompt, "--dangerously-skip-permissions"], {
-      cwd: process.cwd(),
-      stdio: ["ignore", "pipe", "pipe"],
-      env,
+  const client = new Anthropic({ apiKey });
+
+  try {
+    const response = await client.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: delegatePrompt,
+        },
+      ],
     });
 
-    const DELEGATE_TIMEOUT_MS = 3 * 60 * 1000;
-    const timeout = setTimeout(() => {
-      proc.kill();
-      reject(new Error("Delegation timed out after 3 minutes"));
-    }, DELEGATE_TIMEOUT_MS);
+    const content = response.content[0];
+    const text = content.type === "text" ? content.text : "";
+    const summary = text.slice(-800).trim();
 
-    const chunks: string[] = [];
-
-    proc.stdout.on("data", (chunk: Buffer) => {
-      const text = chunk.toString("utf8");
-      process.stdout.write(text);
-      chunks.push(text);
-    });
-
-    proc.stderr.on("data", (chunk: Buffer) => process.stderr.write(chunk));
-    proc.on("error", (err) => { clearTimeout(timeout); reject(err); });
-    proc.on("close", (code) => {
-      clearTimeout(timeout);
-      const full = chunks.join("");
-      const summary = full.slice(-800).trim();
-      resolve({ exitCode: code ?? 1, summary });
-    });
-  });
+    return { exitCode: 0, summary };
+  } catch (err) {
+    throw new Error(`Delegation failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 const DISCORD_UNSAFE_ENABLE_WRITES = envFlagEnabled("DISCORD_UNSAFE_ENABLE_WRITES");
