@@ -72,7 +72,12 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
   });
 
   client.on(discord.Events.MessageCreate, async (message: DiscordMessage) => {
-    if (message.author?.bot) return;
+    console.log(`[Discord] Message received from ${message.author?.username}: "${message.content?.slice(0, 50)}..."`);
+
+    if (message.author?.bot) {
+      console.log(`[Discord] Ignoring bot message`);
+      return;
+    }
 
     if (allowedUsers.size > 0 && !allowedUsers.has(message.author.id)) {
       console.log(`Discord: dropping message from unlisted user ${message.author.id}`);
@@ -89,7 +94,11 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
     const isRoleMentioned = message.guild?.members.me
       ? message.mentions.roles.some((r) => message.guild!.members.me!.roles.cache.has(r.id))
       : false;
-    if (!isDM && !isUserMentioned && !isRoleMentioned) return;
+    console.log(`[Discord] isDM=${isDM}, botId=${botId}, isUserMentioned=${isUserMentioned}, isRoleMentioned=${isRoleMentioned}`);
+    if (!isDM && !isUserMentioned && !isRoleMentioned) {
+      console.log(`[Discord] Message doesn't match criteria, ignoring`);
+      return;
+    }
 
     let content = String(message.content ?? "").trim();
     if (botId) {

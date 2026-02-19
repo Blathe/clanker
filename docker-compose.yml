@@ -2,9 +2,13 @@ services:
   clanker:
     build: .
     image: clanker:dev
-    env_file:
-      - .env
     environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      DISCORD_ALLOWED_USER_IDS: ${DISCORD_ALLOWED_USER_IDS}
+      DISCORD_ALLOWED_CHANNEL_IDS: ${DISCORD_ALLOWED_CHANNEL_IDS}
+      DISCORD_UNSAFE_ENABLE_WRITES: ${DISCORD_UNSAFE_ENABLE_WRITES}
+      ENABLE_CLAUDE_DELEGATE: ${ENABLE_CLAUDE_DELEGATE}
       CLANKER_TRANSPORTS: discord
     volumes:
       - ./sessions:/app/sessions
