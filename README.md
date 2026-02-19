@@ -12,7 +12,9 @@ A security-focused TypeScript CLI agent that runs interactive chat over local RE
 - **Persistent Memory** — Agent reads `MEMORY.md` at startup to retain knowledge across sessions
 - **Multi-Transport Chat** — Run local REPL and Discord bot transport in the same process
 - **Passphrase Protection** — Sensitive operations (writes, moves, etc.) require authentication
+- **Async Job Queue** — Long-running delegation tasks execute in background without blocking sessions
 - **Claude Delegation (Optional)** — Complex programming tasks can be delegated to Claude Code when enabled
+- **Git Support** — Execute git commands (status, log, diff, add, commit, fetch, etc.) while blocking destructive operations
 - **Environment Doctor** — Validate your configuration before startup with `npm run doctor`
 
 ## Quick Start
@@ -137,11 +139,15 @@ Rules are evaluated in order; first match wins. Default action is **block**.
 
 | Rule | Matches | Action |
 |------|---------|--------|
+| `allow-git-commands` | Most git operations (status, log, diff, add, commit, fetch, pull, merge) | Allow |
 | `allow-reads` | ls, cat, grep, head, tail, find, pwd, echo, which, env | Allow |
 | `block-network` | curl, wget, nc, ssh, scp | Block |
 | `block-rm-rf` | `rm -rf` patterns | Block |
 | `secret-for-write` | tee, mv, cp, mkdir, touch, chmod, dd, redirects | Requires passphrase |
 | `blocked-shell-commands` | ps | Block |
+
+**Git Command Blocking:**
+Certain destructive git operations are blocked: `git reset --hard`, `git push --force`, `git branch -D`, `git clean -fd`, `git checkout --force`
 
 **Default passphrase:** `mypassphrase`
 
@@ -181,17 +187,29 @@ The local REPL supports these built-in slash commands:
 
 ```
 src/
-  types.ts        # Type definitions (ExecuteCommandInput, PolicyVerdict, etc.)
-  policy.ts       # Policy evaluation engine
+  types.ts        # Type definitions (ExecuteCommandInput, PolicyVerdict, LLMResponse, etc.)
+  policy.ts       # Policy evaluation engine with rule matching
   executor.ts     # Command execution via bash
   llm.ts          # OpenAI API wrapper (GPT-4o)
   logger.ts       # Session event logger
-  main.ts         # Shared session core + REPL/Discord transports
+  main.ts         # Shared session core, job queue instantiation
+  queue.ts        # JobQueue for async delegation task execution
+  context.ts      # System prompt builder with session resumption
+  config.ts       # Environment variable parsing
   doctor.ts       # Environment/config validation tool
+  runtime.ts      # Shared types (Channel, SendFn, ProcessTurn)
+  turnHandlers.ts # Action handlers (command, edit, delegate, message)
+  transports/
+    repl.ts       # Interactive REPL with slash commands
+    discord.ts    # Discord bot transport with message reply support
 config/
   SOUL.md         # Agent personality configuration
+tests/
+  unit/           # Unit tests (181 tests across policy, executor, session, queue, etc.)
 MEMORY.md         # Persistent agent memory (optional, not committed)
-policy.json       # Security policy rules
+policy.json       # Security policy rules (allow/block/requires-secret)
+Dockerfile        # Docker image with Node 22 and git
+docker-compose.yml # Docker Compose for daemon mode
 sessions/         # Session logs (git-ignored)
 ```
 
