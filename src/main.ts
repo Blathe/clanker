@@ -96,11 +96,12 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
     throw new Error("ANTHROPIC_API_KEY environment variable is not set for delegation.");
   }
 
+  const delegateModel = process.env.CLANKER_DELEGATE_MODEL || "claude-3-5-sonnet-20241022";
   const client = new Anthropic({ apiKey });
 
   try {
     const response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: delegateModel,
       max_tokens: 4096,
       messages: [
         {
