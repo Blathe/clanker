@@ -64,23 +64,28 @@ export class JobQueue {
     delegateFn: (prompt: string) => Promise<DelegateResult>
   ): Promise<void> {
     try {
+      console.log(`[JobQueue] Starting delegation task ${job.id}`);
       const result = await delegateFn(job.prompt);
+      console.log(`[JobQueue] Delegation task ${job.id} completed, sending notification`);
       job.history.push({
         role: "user",
         content: `[Background task completed] Claude delegation result: ${result.summary}`,
       });
       try {
         await job.send(`Claude has finished the delegated task:\n\n${result.summary}`);
-      } catch {
-        // Silently ignore send errors; connection may have been lost
+        console.log(`[JobQueue] Successfully sent notification for task ${job.id}`);
+      } catch (err) {
+        console.error(`[JobQueue] Failed to send notification for task ${job.id}: ${err}`);
       }
     } catch (err) {
+      console.error(`[JobQueue] Task ${job.id} failed: ${err}`);
       try {
         await job.send(
           `The delegated task failed: ${err instanceof Error ? err.message : String(err)}`
         );
-      } catch {
-        // Silently ignore send errors; connection may have been lost
+        console.log(`[JobQueue] Successfully sent error notification for task ${job.id}`);
+      } catch (sendErr) {
+        console.error(`[JobQueue] Failed to send error notification for task ${job.id}: ${sendErr}`);
       }
     }
   }
