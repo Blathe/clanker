@@ -110,8 +110,21 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         canUseTool: async (toolName, toolInput) => {
-          const verdict = evaluate(toolName);
-          console.log(`[Delegation] Tool use requested: ${toolName}`, { decision: verdict.decision });
+          // For bash_execute_command tool, evaluate the actual command string
+          let commandToEvaluate = toolName;
+          if (toolName === "bash_execute_command" && toolInput && typeof toolInput === "object") {
+            const input = toolInput as { command?: string };
+            if (input.command) {
+              commandToEvaluate = input.command;
+            }
+          }
+
+          const verdict = evaluate(commandToEvaluate);
+          console.log(`[Delegation] Tool use requested: ${toolName}`, {
+            decision: verdict.decision,
+            evaluated: commandToEvaluate.slice(0, 80),
+          });
+
           if (verdict.decision === "allowed") {
             return { behavior: "allow" };
           } else {
@@ -119,7 +132,7 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
             console.log(`[Delegation] Tool blocked: ${toolName} - ${reason}`);
             return {
               behavior: "deny",
-              message: `Tool "${toolName}" is blocked by policy: ${reason}`,
+              message: `Command blocked by policy: ${reason}`,
             };
           }
         },
@@ -173,7 +186,9 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
       summary: resultMessage.summary || fullResponse.slice(-800).trim(),
     };
   } catch (err) {
-    throw new Error(`Delegation failed: ${err instanceof Error ? err.message : String(err)}`);
+    // Log full error for debugging, but throw generic error
+    console.error("Delegation error:", err);
+    throw new Error("Delegation failed. Please try again.");
   }
 }
 
@@ -245,7 +260,9 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
       try {
         response = await callLLM(state.history);
       } catch (err) {
-        await send(`LLM error: ${err}`);
+        // Log full error for debugging, but send sanitized message to user
+        console.error(`[${channel}:${sessionId}] LLM error:`, err);
+        await send("An error occurred while processing your request. Please try again.");
         state.history.pop();
         return;
       }

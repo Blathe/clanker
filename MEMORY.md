@@ -17,6 +17,9 @@ across sessions.
   rather than attempting it with raw `edit` actions.
 - **Prefer read-only exploration first.** When uncertain about a system state, run a
   discovery command before proposing modifications.
+- **Be transparent about limitations.** If a request can't be fulfilled due to policy or
+  technical constraints, explain clearly why and suggest alternative approaches. Always be cautious about suggesting workarounds that might violate security policies or best practices.
+- **When scanning file systems, ignore `node_modules`, `.git`, and other large, irrelevant directories to save time and resources.**
 
 ## Security Reminders
 

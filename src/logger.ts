@@ -18,6 +18,38 @@ function trunc(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + "\u2026" : s;
 }
 
+/**
+ * Filter sensitive data from output before logging
+ * Removes API keys, tokens, passwords, and other credentials
+ */
+function filterSensitiveData(text: string): string {
+  // Common patterns for sensitive data
+  const patterns = [
+    // API keys and tokens
+    /sk-[A-Za-z0-9_-]{20,}/g, // OpenAI keys
+    /sk-ant-[A-Za-z0-9_-]{20,}/g, // Anthropic keys
+    /ghp_[A-Za-z0-9_]{36,}/g, // GitHub PAT
+    /discord[._-]?token[=:]\s*[^\s]+/gi,
+    // Environment variables with secrets
+    /([A-Z_]+_(?:KEY|TOKEN|PASSWORD|SECRET))[=:]\s*[^\s]+/g,
+    // Common password patterns
+    /password[=:]\s*[^\s]+/gi,
+    /passwd[=:]\s*[^\s]+/gi,
+    // AWS/cloud credentials
+    /AKIA[0-9A-Z]{16}/g,
+    // SSH and authentication
+    /-----BEGIN.*PRIVATE KEY-----[\s\S]*?-----END.*PRIVATE KEY-----/g,
+    // URLs with credentials
+    /https?:\/\/[^:]+:[^@]+@/g,
+  ];
+
+  let filtered = text;
+  for (const pattern of patterns) {
+    filtered = filtered.replace(pattern, "[REDACTED]");
+  }
+  return filtered;
+}
+
 function ts(): number {
   return Math.floor(Date.now() / 1000);
 }
@@ -99,8 +131,8 @@ export function logCommandResult(command: string, result: ExecutionResult): void
     t: ts(), ev: "cmd",
     cmd: trunc(command, MAX_CMD),
     exit: result.exit_code,
-    out: trunc(result.stdout, MAX_OUT),
-    err: trunc(result.stderr, MAX_OUT),
+    out: trunc(filterSensitiveData(result.stdout), MAX_OUT),
+    err: trunc(filterSensitiveData(result.stderr), MAX_OUT),
   });
 }
 

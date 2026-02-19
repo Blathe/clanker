@@ -12,8 +12,65 @@ A security-focused TypeScript CLI agent built on OpenAI's GPT-4o with Anthropic 
 npm start          # Run the agent (requires OPENAI_API_KEY env var)
 npm run dev        # Run with file-watching (requires --env-file-if-exists=.env)
 npm run doctor     # Validate configuration before startup
+npm test           # Run all unit tests
+npm run test:watch # Run tests in watch mode
+npm run test:coverage # Generate coverage report
 npx tsc --noEmit   # Type-check without emitting files
 ```
+
+## Development Workflow (Required)
+
+**All new features and changes must follow Test-Driven Development (TDD):**
+
+### Step 1: Discuss Expected Outcome
+Before any code is written, discuss the requirements and expected behavior:
+- What is the feature supposed to do?
+- What are the edge cases and error conditions?
+- How should it integrate with existing code?
+- What are the security implications?
+
+### Step 2: Write Unit Tests
+Write tests **before** implementing the feature:
+1. Create test file in `tests/unit/[feature]/[feature].test.ts`
+2. Write test cases covering:
+   - Happy path (expected behavior)
+   - Edge cases (boundary conditions)
+   - Error cases (invalid inputs, failures)
+   - Security cases (where applicable)
+3. Tests should fail initially (you're writing tests for code that doesn't exist yet)
+
+**Test File Checklist:**
+- [ ] Test file created with `.test.ts` extension
+- [ ] Test cases written with descriptive names
+- [ ] Edge cases and error conditions covered
+- [ ] Tests currently fail (red state)
+
+### Step 3: Implement the Feature
+Once tests are written, implement the feature to make tests pass:
+1. Write the minimal code needed to pass tests
+2. Follow existing code style and patterns
+3. Add inline comments only for non-obvious logic
+4. Do not add unnecessary features or "improvements"
+
+### Step 4: Run Tests
+After implementation, always verify:
+```bash
+npm test              # Run all tests — must pass
+npm run test:watch   # Optional: watch mode during development
+npm run test:coverage # Check coverage on critical paths
+```
+
+**Pre-commit Checklist:**
+- [ ] All tests pass (`npm test` exits with code 0)
+- [ ] No broken existing tests
+- [ ] New tests for new functionality
+- [ ] Type checking passes (`npx tsc --noEmit`)
+
+### Why This Matters
+- **Security-First:** Tests catch vulnerabilities before deployment
+- **Regression Prevention:** Tests verify nothing breaks when changing code
+- **Documentation:** Tests serve as executable requirements
+- **Confidence:** Tests prove the code works as intended
 
 ## Architecture
 
@@ -156,3 +213,49 @@ The doctor validates:
 - Discord configuration (token, allowlists, unsafe mode flag)
 - Transport configuration (at least one transport must be enabled)
 - Delegate configuration (`ENABLE_CLAUDE_DELEGATE` flag validity)
+
+## Security & Testing
+
+### Security is Non-Negotiable
+Clanker is a security-focused agent that executes commands. Security must be built in from the start:
+
+1. **Policy Rule Tests** (`tests/unit/policy/patterns.test.ts`)
+   - Verify regex patterns block dangerous commands
+   - Test all combinations of dangerous flags
+   - Validate command chaining is prevented (`;`, `|`, `&&`, `||`)
+   - **Must pass before any policy change is deployed**
+
+2. **Path Validation Tests** (Executor)
+   - Test path traversal prevention (`../../../etc/passwd`)
+   - Test symlink detection and rejection
+   - Test working directory validation
+   - **Required for any file operation changes**
+
+3. **Input Validation Tests**
+   - Test LLM response validation (Zod schemas)
+   - Test Discord input sanitization
+   - Test REPL input length limits
+   - **Required for all user-facing inputs**
+
+4. **Cryptographic Tests**
+   - Test timing-safe comparisons for secrets
+   - Test hash generation and verification
+   - **Critical for authentication features**
+
+### Adding Security Features
+When adding security features:
+1. Write tests that verify the vulnerability is fixed
+2. Write tests that verify the vulnerability cannot be re-introduced
+3. Run `npm test` to ensure no regressions
+4. Document the vulnerability and fix in comments
+
+### Adding Policy Rules
+New policy rules must include:
+```typescript
+test.each([
+  { cmd: 'dangerous-command', shouldMatch: true },
+  { cmd: 'variant-flag-order', shouldMatch: true },
+  { cmd: 'bypass-attempt', shouldMatch: true },
+  { cmd: 'legitimate-command', shouldMatch: false },
+])
+```

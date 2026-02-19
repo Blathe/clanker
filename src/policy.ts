@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -25,7 +25,8 @@ export function evaluate(command: string): PolicyVerdict {
   const policy = getPolicy();
 
   for (const rule of policy.rules) {
-    const regex = new RegExp(rule.pattern, "i");
+    // Do NOT use case-insensitive flag - prevents certain bypass techniques
+    const regex = new RegExp(rule.pattern);
     if (regex.test(command)) {
       return verdictFromRule(rule);
     }
@@ -76,5 +77,11 @@ export function verifySecret(ruleId: string, passphrase: string): boolean {
     .update(passphrase.trim())
     .digest("hex");
 
-  return hash === rule.secret_hash;
+  try {
+    // Use timingSafeEqual to prevent timing attacks
+    return timingSafeEqual(Buffer.from(hash), Buffer.from(rule.secret_hash));
+  } catch {
+    // If buffers are different lengths, comparison will throw
+    return false;
+  }
 }

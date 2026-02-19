@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, lstatSync } from "node:fs";
+import { normalize, resolve, relative } from "node:path";
 import type { ExecuteCommandInput, ExecutionResult } from "./types.js";
 
 export interface EditResult {
@@ -7,10 +8,71 @@ export interface EditResult {
   error?: string;
 }
 
+/**
+ * Validates that a file path is safe and within allowed boundaries.
+ * Prevents path traversal attacks (e.g., ../../../../etc/passwd).
+ */
+function validateFilePath(file: string): { valid: boolean; error?: string } {
+  if (!file || typeof file !== "string") {
+    return { valid: false, error: "File path must be a non-empty string" };
+  }
+
+  // Normalize the path to resolve . and .. segments
+  const normalized = normalize(file);
+  const absolute = resolve(process.cwd(), normalized);
+  const relative_path = relative(process.cwd(), absolute);
+
+  // Reject if path tries to escape current directory
+  if (relative_path.startsWith("..")) {
+    return { valid: false, error: "Path traversal detected: cannot access files outside current directory" };
+  }
+
+  // Check for symlinks (prevent symlink-based attacks)
+  try {
+    const stat = lstatSync(absolute);
+    if (stat.isSymbolicLink()) {
+      return { valid: false, error: "Cannot edit files that are symbolic links" };
+    }
+  } catch {
+    // File doesn't exist yet (for new files), which is OK
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validates that a working directory is safe for command execution.
+ * Prevents path traversal attacks via working_dir parameter.
+ */
+function validateWorkingDir(dir: string): { valid: boolean; resolved?: string; error?: string } {
+  if (!dir || typeof dir !== "string") {
+    return { valid: false, error: "Working directory must be a non-empty string" };
+  }
+
+  // Normalize and resolve to absolute path
+  const normalized = normalize(dir);
+  const absolute = resolve(process.cwd(), normalized);
+  const relative_path = relative(process.cwd(), absolute);
+
+  // Reject if path tries to escape current directory
+  if (relative_path.startsWith("..")) {
+    return { valid: false, error: "Path traversal detected: working directory must be within current directory tree" };
+  }
+
+  return { valid: true, resolved: absolute };
+}
+
 export function applyEdit(file: string, oldText: string, newText: string): EditResult {
+  // Validate file path to prevent traversal attacks
+  const validation = validateFilePath(file);
+  if (!validation.valid) {
+    return { success: false, error: validation.error };
+  }
+
   let contents: string;
   try {
-    contents = readFileSync(file, "utf8");
+    const absolute = resolve(process.cwd(), normalize(file));
+    contents = readFileSync(absolute, "utf8");
   } catch {
     return { success: false, error: `Could not read file: ${file}` };
   }
@@ -21,7 +83,8 @@ export function applyEdit(file: string, oldText: string, newText: string): EditR
 
   const updated = contents.replace(oldText, newText);
   try {
-    writeFileSync(file, updated, "utf8");
+    const absolute = resolve(process.cwd(), normalize(file));
+    writeFileSync(absolute, updated, "utf8");
   } catch {
     return { success: false, error: `Could not write file: ${file}` };
   }
@@ -30,6 +93,21 @@ export function applyEdit(file: string, oldText: string, newText: string): EditR
 }
 
 const GIT_BASH = "C:/Program Files/Git/bin/bash.exe";
+
+// Max output per command (512 KB hard limit)
+const MAX_OUTPUT_PER_COMMAND = 512 * 1024;
+
+/**
+ * Cap command output to prevent memory exhaustion
+ * Truncates and logs warning if output exceeds limit
+ */
+function capOutput(output: string, label: string): string {
+  if (output.length > MAX_OUTPUT_PER_COMMAND) {
+    console.warn(`Output ${label} exceeded ${MAX_OUTPUT_PER_COMMAND} bytes, truncating`);
+    return output.slice(0, MAX_OUTPUT_PER_COMMAND) + "\n[OUTPUT TRUNCATED]";
+  }
+  return output;
+}
 
 function buildShellArgs(command: string): { shell: string; args: string[] } {
   const shellOverride = process.env.SHELL_BIN?.trim();
@@ -45,23 +123,43 @@ function buildShellArgs(command: string): { shell: string; args: string[] } {
 
 export function runCommand(input: ExecuteCommandInput): ExecutionResult {
   const { shell, args } = buildShellArgs(input.command);
+
+  // Validate working_dir to prevent path traversal attacks
+  let cwd = process.cwd();
+  if (input.working_dir) {
+    const validation = validateWorkingDir(input.working_dir);
+    if (!validation.valid) {
+      return {
+        success: false,
+        stdout: "",
+        stderr: validation.error || "Invalid working directory",
+        exit_code: 1,
+      };
+    }
+    cwd = validation.resolved!;
+  }
+
   const result = spawnSync(shell, args, {
-    cwd: input.working_dir ?? process.cwd(),
+    cwd,
     encoding: "utf8",
     timeout: 10_000,
     maxBuffer: 512 * 1024,
   });
 
   const exit_code = result.status ?? 1;
-  const stdout = result.stdout ?? "";
-  const stderr = result.stderr ?? "";
+  let stdout = result.stdout ?? "";
+  let stderr = result.stderr ?? "";
+
+  // Cap output to prevent memory exhaustion
+  stdout = capOutput(stdout, "stdout");
+  stderr = capOutput(stderr, "stderr");
 
   // spawnSync sets error property on timeout or spawn failure
   if (result.error) {
     return {
       success: false,
       stdout: "",
-      stderr: result.error.message,
+      stderr: capOutput(result.error.message, "error"),
       exit_code: 1,
     };
   }

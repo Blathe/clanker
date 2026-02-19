@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ProcessTurn, SendFn } from "../runtime.js";
 import { getEnv, parseCsvEnvSet } from "../config.js";
 
@@ -40,6 +41,10 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
 
   const allowedUsers = parseCsvEnvSet("DISCORD_ALLOWED_USER_IDS");
   const allowedChannels = parseCsvEnvSet("DISCORD_ALLOWED_CHANNEL_IDS");
+
+  // Map to track session tokens for each channel+user combination
+  // This ensures conversation continuity while using cryptographically secure session IDs
+  const sessionTokens = new Map<string, string>();
 
   const client = new discord.Client({
     intents: [
@@ -102,19 +107,28 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
 
     let content = String(message.content ?? "").trim();
     if (botId) {
-      const userMentionRegex = new RegExp(`<@!?${botId}>`, "g");
-      content = content.replace(userMentionRegex, "").trim();
+      // Remove bot mentions (both <@botId> and <@!botId> formats)
+      // Discord IDs are numeric, so safe to use in string operations
+      content = content.replace(`<@${botId}>`, "").replace(`<@!${botId}>`, "").trim();
     }
     if (message.guild?.members.me) {
       for (const role of message.mentions.roles.values()) {
         if (message.guild.members.me.roles.cache.has(role.id)) {
+          // Remove role mentions — Discord IDs are numeric and safe to use directly
           content = content.replace(`<@&${role.id}>`, "").trim();
         }
       }
     }
     if (!content) return;
 
-    const sessionId = `discord:${message.channelId}:${message.author.id}`;
+    // Generate or retrieve a cryptographically secure session token for this channel+user pair
+    const sessionKey = `${message.channelId}:${message.author.id}`;
+    let sessionToken = sessionTokens.get(sessionKey);
+    if (!sessionToken) {
+      sessionToken = randomUUID();
+      sessionTokens.set(sessionKey, sessionToken);
+    }
+    const sessionId = `discord:${sessionToken}`;
 
     const send: SendFn = async (text: string) => {
       const parts = splitDiscordMessage(text);
@@ -126,7 +140,9 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
     try {
       await processTurn(sessionId, "discord", content, send);
     } catch (err) {
-      await message.reply(`Error: ${String(err)}`);
+      // Log full error for debugging, but send sanitized message to user
+      console.error(`[Discord] Error in session ${sessionId}:`, err);
+      await message.reply("An error occurred while processing your request. Please try again.");
     }
   });
 

@@ -9,7 +9,7 @@
         },
         {
             "id": "block-rm-rf",
-            "pattern": "rm\\s+-[a-z]*r[a-z]*f",
+            "pattern": "\\b(rm|remove)\\b(?=.*(?:-[a-z]*r|--recursive))(?=.*(?:-[a-z]*f|--force))",
             "action": "block",
             "description": "Destructive deletion blocked"
         },
@@ -28,7 +28,7 @@
         },
         {
             "id": "allow-reads",
-            "pattern": "^(ls|cat|head|tail|grep|find|pwd|echo|which|env)\\b",
+            "pattern": "^(ls|cat|head|tail|grep|find|pwd|which|env)(?:\\s+(?:[^;|&]|\\\\[;|&])*)?$",
             "action": "allow",
             "description": "Read-only inspection"
         },
