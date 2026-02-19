@@ -132,6 +132,65 @@ describe('Policy Regex Patterns', () => {
     );
   });
 
+  describe('allow-git-commands rule', () => {
+    const rule = policy.rules.find((r: any) => r.id === 'allow-git-commands');
+    const regex = rule ? new RegExp(rule.pattern) : null;
+
+    // Skip tests if rule doesn't exist yet
+    if (!regex) {
+      test('allow-git-commands rule exists', () => {
+        expect(rule).toBeDefined();
+      });
+    } else {
+      const testCases: TestCase[] = [
+        // Read-only git commands that should be allowed
+        { cmd: 'git status', shouldMatch: true },
+        { cmd: 'git log', shouldMatch: true },
+        { cmd: 'git log --oneline', shouldMatch: true },
+        { cmd: 'git diff', shouldMatch: true },
+        { cmd: 'git diff HEAD~1', shouldMatch: true },
+        { cmd: 'git show HEAD', shouldMatch: true },
+        { cmd: 'git branch', shouldMatch: true },
+        { cmd: 'git branch -v', shouldMatch: true },
+        { cmd: 'git remote', shouldMatch: true },
+        { cmd: 'git remote -v', shouldMatch: true },
+        { cmd: 'git tag', shouldMatch: true },
+        { cmd: 'git stash list', shouldMatch: true },
+        { cmd: 'git reflog', shouldMatch: true },
+        { cmd: 'git config --list', shouldMatch: true },
+        { cmd: 'git add file.txt', shouldMatch: true },
+        { cmd: 'git add .', shouldMatch: true },
+        { cmd: 'git commit -m "message"', shouldMatch: true },
+        { cmd: 'git fetch', shouldMatch: true },
+        { cmd: 'git fetch origin', shouldMatch: true },
+        { cmd: 'git pull', shouldMatch: true },
+        { cmd: 'git merge main', shouldMatch: true },
+
+        // Dangerous git commands that should be blocked
+        { cmd: 'git reset --hard', shouldMatch: false, reason: 'Destructive reset blocked' },
+        { cmd: 'git reset --hard HEAD~1', shouldMatch: false, reason: 'Hard reset blocked' },
+        { cmd: 'git push --force', shouldMatch: false, reason: 'Force push blocked' },
+        { cmd: 'git push -f', shouldMatch: false, reason: 'Force push (-f) blocked' },
+        { cmd: 'git branch -D main', shouldMatch: false, reason: 'Force delete branch blocked' },
+        { cmd: 'git clean -fd', shouldMatch: false, reason: 'Destructive clean blocked' },
+        { cmd: 'git checkout --force', shouldMatch: false, reason: 'Force checkout blocked' },
+
+        // Command chaining attempts — should be blocked
+        { cmd: 'git status; rm -rf /', shouldMatch: false, reason: 'Command chaining blocked' },
+        { cmd: 'git log | grep foo', shouldMatch: false, reason: 'Pipe blocked' },
+        { cmd: 'git status && whoami', shouldMatch: false, reason: 'AND operator blocked' },
+      ];
+
+      test.each(testCases)(
+        'should ${shouldMatch ? "allow" : "block"}: "$cmd"${reason ? ` (${reason})` : ""}',
+        ({ cmd, shouldMatch, reason }) => {
+          const matches = regex.test(cmd);
+          expect(matches).toBe(shouldMatch);
+        }
+      );
+    }
+  });
+
   describe('Policy rule priorities (first match wins)', () => {
     test('allow-reads should match before block-network when command uses grep with pipe', () => {
       const allowReads = policy.rules.find((r: any) => r.id === 'allow-reads');

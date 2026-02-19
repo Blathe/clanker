@@ -21,10 +21,10 @@
             "secret_hash": "788006caf535441ad49e2747bb0edd0203f38a74caacf7c337fc1a9ecfa99cd8"
         },
         {
-            "id": "allow-git-remote-v",
-            "pattern": "^git\\s+remote\\s+-v$",
+            "id": "allow-git-commands",
+            "pattern": "^git\\b(?!.*(?:--hard|--force|-f(?:\\s|$)|-D(?:\\s|$)|clean\\s+.*-f))(?:[^;|&]|\\\\[;|&])*$",
             "action": "allow",
-            "description": "Allow read-only listing of configured git remotes"
+            "description": "Allow most git commands except destructive operations (--hard, --force, force-delete)"
         },
         {
             "id": "allow-reads",
