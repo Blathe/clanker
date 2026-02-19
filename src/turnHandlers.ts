@@ -1,6 +1,6 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import { evaluate, verifySecret } from "./policy.js";
-import { runCommand, formatResult, applyEdit } from "./executor.js";
+import { runCommand, formatResult, applyEdit, validateCommandLength } from "./executor.js";
 import type { LLMResponse } from "./types.js";
 import type { Channel, SendFn } from "./runtime.js";
 import {
@@ -105,6 +105,14 @@ async function handleEditAction(ctx: TurnActionContext): Promise<TurnActionOutco
 
 async function handleCommandAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
   if (ctx.response.type !== "command") return "continue";
+
+  // Validate command length before policy evaluation
+  const lengthValidation = validateCommandLength(ctx.response.command);
+  if (!lengthValidation.valid) {
+    await ctx.send(`[ERROR] ${lengthValidation.error}`);
+    pushUserHistory(ctx.history, `Command rejected: ${lengthValidation.error}`);
+    return "continue";
+  }
 
   const verdict = evaluate(ctx.response.command);
 

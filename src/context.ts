@@ -4,6 +4,39 @@ import { join, dirname } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Validates that a filename matches the expected session file format
+ * Expected format: YYYY-MM-DDTHH-MM-SS_<pid>.jsonl
+ */
+function isValidSessionFilename(filename: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}_\d+\.jsonl$/.test(filename);
+}
+
+/**
+ * Filters filenames to only valid session files
+ */
+function filterValidSessionFiles(filenames: string[]): string[] {
+  return filenames.filter(isValidSessionFilename);
+}
+
+/**
+ * Extracts the timestamp from a session filename
+ * Expected format: YYYY-MM-DDTHH-MM-SS_<pid>.jsonl
+ * Returns timestamp in format "YYYY-MM-DD HH:MM:SS" for display
+ */
+function extractSessionTimestamp(filename: string): string | null {
+  // Validate filename format: should end with _<numbers>.jsonl
+  const match = filename.match(/^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})_(\d+)\.jsonl$/);
+  if (!match) {
+    return null; // Invalid format
+  }
+
+  const timestamp = match[1]; // e.g., "2024-01-15T14-30-45"
+  // Convert T to space and hyphens to colons in time portion
+  // "2024-01-15T14-30-45" -> "2024-01-15 14:30:45"
+  return timestamp.replace("T", " ").replace(/-(\d{2})-(\d{2})$/, ":$1:$2");
+}
+
 function loadSoul(): string {
   const soulPath = join(__dirname, "..", "config", "SOUL.md");
   if (existsSync(soulPath)) {
@@ -28,6 +61,7 @@ function loadLastSession(): string {
   try {
     files = readdirSync(sessionsDir)
       .filter((f) => f.endsWith(".jsonl"))
+      .filter(isValidSessionFilename) // Only accept properly formatted session files
       .sort();
   } catch {
     return "";
@@ -64,7 +98,7 @@ function loadLastSession(): string {
     const topics = Array.isArray(summaryEntry.topics) ? (summaryEntry.topics as string[]) : [];
     if (topics.length > 0) {
       const fileName = files[files.length - 1];
-      const stamp = fileName.slice(0, 19).replace(/-/g, ":").replace("T", " ");
+      const stamp = extractSessionTimestamp(fileName) || "unknown time";
       return "## Last Session Summary\n\n" + `Session (${stamp}):\n` + topics.map((t) => `- ${t}`).join("\n") + "\n\n";
     }
   }
@@ -73,7 +107,8 @@ function loadLastSession(): string {
   for (const entry of entries) {
     switch (entry.ev) {
       case "start": {
-        const stamp = files[files.length - 1].replace("_" + files[files.length - 1].split("_").pop(), "");
+        const fileName = files[files.length - 1];
+        const stamp = extractSessionTimestamp(fileName) || "unknown time";
         events.push(`[Session started: ${stamp}]`);
         break;
       }

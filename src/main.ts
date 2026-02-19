@@ -92,8 +92,9 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
     throw new Error("Claude delegation is disabled. Set ENABLE_CLAUDE_DELEGATE=1 to enable it.");
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY environment variable is not set for delegation.");
+  const apiKeyValidation = validateAnthropicKey(process.env.ANTHROPIC_API_KEY);
+  if (!apiKeyValidation.valid) {
+    throw new Error(apiKeyValidation.error!);
   }
 
   const delegateModel = process.env.CLANKER_CLAUDE_ACTIVE_MODEL || "claude-sonnet-4-6";
@@ -212,6 +213,25 @@ interface SessionState {
 const MAX_HISTORY = 50;
 const MAX_SESSIONS = 100;
 const MAX_USER_INPUT = 8000; // characters
+
+/**
+ * Validates Anthropic API key format
+ * Anthropic keys must start with "sk-ant-"
+ */
+export function validateAnthropicKey(key: string | undefined): { valid: boolean; error: string | null } {
+  if (!key) {
+    return { valid: false, error: "ANTHROPIC_API_KEY is not set" };
+  }
+
+  if (!key.startsWith("sk-ant-")) {
+    return {
+      valid: false,
+      error: "ANTHROPIC_API_KEY must start with 'sk-ant-'. Check your API key format.",
+    };
+  }
+
+  return { valid: true, error: null };
+}
 
 /**
  * Validates user input length to prevent DoS and memory exhaustion

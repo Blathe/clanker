@@ -6,6 +6,25 @@ import type { LLMResponse } from "./types.js";
 const MODEL = "gpt-4o";
 const MAX_TOKENS = 1024;
 
+/**
+ * Validates OpenAI API key format
+ * OpenAI keys must start with "sk-"
+ */
+function validateOpenAIKey(key: string | undefined): { valid: boolean; error: string | null } {
+  if (!key) {
+    return { valid: false, error: "OPENAI_API_KEY is not set" };
+  }
+
+  if (!key.startsWith("sk-")) {
+    return {
+      valid: false,
+      error: "OPENAI_API_KEY must start with 'sk-'. Check your API key format.",
+    };
+  }
+
+  return { valid: true, error: null };
+}
+
 // Zod schemas for validating LLM responses
 const CommandResponseSchema = z.object({
   type: z.literal("command"),
@@ -45,8 +64,9 @@ let _client: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!_client) {
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY environment variable is not set");
+    const validation = validateOpenAIKey(apiKey);
+    if (!validation.valid) {
+      throw new Error(validation.error!);
     }
     _client = new OpenAI({ apiKey });
   }

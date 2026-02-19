@@ -8,6 +8,27 @@ export interface EditResult {
   error?: string;
 }
 
+const MAX_COMMAND_LENGTH = 10000; // characters
+
+/**
+ * Validates command length to prevent performance issues during policy evaluation
+ * and regex DoS attacks
+ */
+export function validateCommandLength(command: string): { valid: boolean; error: string | null } {
+  if (!command) {
+    return { valid: false, error: "Command cannot be empty" };
+  }
+
+  if (command.length > MAX_COMMAND_LENGTH) {
+    return {
+      valid: false,
+      error: `Command too long (${command.length} characters, max ${MAX_COMMAND_LENGTH}). Commands must be concise.`,
+    };
+  }
+
+  return { valid: true, error: null };
+}
+
 /**
  * Validates that a file path is safe and within allowed boundaries.
  * Prevents path traversal attacks (e.g., ../../../../etc/passwd).
