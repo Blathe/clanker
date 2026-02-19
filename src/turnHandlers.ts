@@ -27,6 +27,7 @@ interface TurnActionContext {
   delegateEnabled: boolean;
   promptSecret: (question: string) => Promise<string>;
   delegateToClaude: (delegatePrompt: string) => Promise<DelegateResult>;
+  queueDelegate?: (prompt: string, send: SendFn, history: ChatCompletionMessageParam[]) => boolean;
 }
 
 function pushUserHistory(history: ChatCompletionMessageParam[], content: string): void {
@@ -48,6 +49,18 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
     return "continue";
   }
 
+  // Try async queueing if available
+  if (ctx.queueDelegate) {
+    const queued = ctx.queueDelegate(ctx.response.prompt, ctx.send, ctx.history);
+    if (!queued) {
+      await ctx.send("The job queue is full. Please try again shortly.");
+      return "break";
+    }
+    await ctx.send(`Queuing task for Claude: ${ctx.response.explanation}\n\nI'll notify you here when it's done. Feel free to keep chatting!`);
+    return "break";
+  }
+
+  // Fallback: synchronous delegation (existing behavior)
   await ctx.send(ctx.response.explanation);
   await ctx.send("[DELEGATING TO CLAUDE]");
 

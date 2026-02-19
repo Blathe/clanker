@@ -2,6 +2,7 @@ import readline from "node:readline";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
+import { randomUUID } from "node:crypto";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import { callLLM } from "./llm.js";
@@ -10,6 +11,7 @@ import { runDiscordTransport } from "./transports/discord.js";
 import { runReplTransport } from "./transports/repl.js";
 import type { Channel, SendFn } from "./runtime.js";
 import { handleTurnAction, type DelegateResult } from "./turnHandlers.js";
+import { JobQueue } from "./queue.js";
 import { envFlagEnabled, parseTransportsDetailed } from "./config.js";
 import { evaluate } from "./policy.js";
 import {
@@ -303,6 +305,7 @@ class SessionManager {
 }
 
 const sessionManager = new SessionManager();
+const jobQueue = new JobQueue();
 const sessionTopics: string[] = [];
 
 initLogger();
@@ -357,6 +360,13 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
       state.history.push({ role: "assistant", content: JSON.stringify(response) });
       logLLMResponse(response);
 
+      const queueDelegate = (prompt: string, sendFn: SendFn, history: ChatCompletionMessageParam[]): boolean => {
+        return jobQueue.enqueue(
+          { id: randomUUID(), sessionId, prompt, send: sendFn, history },
+          delegateToClaude
+        );
+      };
+
       const outcome = await handleTurnAction({
         channel,
         send,
@@ -366,6 +376,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         delegateEnabled: ENABLE_CLAUDE_DELEGATE,
         promptSecret,
         delegateToClaude,
+        queueDelegate,
       });
       if (outcome === "continue") {
         continue;
