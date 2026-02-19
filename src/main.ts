@@ -2,7 +2,7 @@ import readline from "node:readline";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import { callLLM } from "./llm.js";
 import { loadRuntimePromptContext } from "./context.js";
@@ -11,6 +11,7 @@ import { runReplTransport } from "./transports/repl.js";
 import type { Channel, SendFn } from "./runtime.js";
 import { handleTurnAction, type DelegateResult } from "./turnHandlers.js";
 import { envFlagEnabled, parseTransportsDetailed } from "./config.js";
+import { evaluate } from "./policy.js";
 import {
   initLogger,
   logUserInput,
@@ -91,31 +92,73 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
     throw new Error("Claude delegation is disabled. Set ENABLE_CLAUDE_DELEGATE=1 to enable it.");
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error("ANTHROPIC_API_KEY environment variable is not set for delegation.");
   }
 
   const delegateModel = process.env.CLANKER_CLAUDE_ACTIVE_MODEL || "claude-sonnet-4-6";
-  const client = new Anthropic({ apiKey });
 
   try {
-    const response = await client.messages.create({
-      model: delegateModel,
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content: delegatePrompt,
+    let fullResponse = "";
+    let resultMessage: { type: string; exitCode?: number; summary?: string } = { type: "unknown" };
+
+    const q = query({
+      prompt: delegatePrompt,
+      options: {
+        model: delegateModel,
+        tools: { type: "preset", preset: "claude_code" },
+        canUseTool: async (toolName, toolInput) => {
+          const verdict = evaluate(toolName);
+          if (verdict.decision === "allowed") {
+            return { behavior: "allow" };
+          } else {
+            const reason = "reason" in verdict ? verdict.reason : "denied by policy";
+            return {
+              behavior: "deny",
+              message: `Tool "${toolName}" is blocked by policy: ${reason}`,
+            };
+          }
         },
-      ],
+      },
     });
 
-    const content = response.content[0];
-    const text = content.type === "text" ? content.text : "";
-    const summary = text.slice(-800).trim();
+    for await (const message of q) {
+      if (message.type === "assistant") {
+        const assistantMessage = message.message as { content: Array<{ type: string; text?: string }> };
+        for (const block of assistantMessage.content) {
+          if (block.type === "text" && block.text) {
+            fullResponse += block.text;
+          }
+        }
+      } else if (message.type === "result") {
+        const result = message as {
+          subtype: string;
+          duration_ms: number;
+          num_turns: number;
+          result?: string;
+          errors?: string[];
+        };
 
-    return { exitCode: 0, summary };
+        if (result.subtype === "success") {
+          resultMessage = {
+            type: "success",
+            exitCode: 0,
+            summary: (result.result || fullResponse).slice(-800).trim(),
+          };
+        } else {
+          resultMessage = {
+            type: "error",
+            exitCode: 1,
+            summary: (result.errors ? result.errors.join("\n") : "Unknown error").slice(-800).trim(),
+          };
+        }
+      }
+    }
+
+    return {
+      exitCode: resultMessage.exitCode || 0,
+      summary: resultMessage.summary || fullResponse.slice(-800).trim(),
+    };
   } catch (err) {
     throw new Error(`Delegation failed: ${err instanceof Error ? err.message : String(err)}`);
   }
