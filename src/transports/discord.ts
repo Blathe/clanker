@@ -141,20 +141,31 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
     // Create a send function that fetches a fresh message reference
     // This handles the case where background jobs reply after long delays
     // and the original message object becomes stale
+    const messageId = message.id;
+    const channelId = message.channelId;
+
     const send: SendFn = async (text: string) => {
       const parts = splitDiscordMessage(text);
       for (const part of parts) {
         try {
           // Try the cached message object first (works for immediate replies)
           await message.reply(part);
-        } catch {
+          console.log(`[Discord] Sent reply using cached message object`);
+        } catch (err) {
+          console.log(`[Discord] Cached message object failed: ${err}. Fetching fresh message...`);
           // If that fails, fetch a fresh message from Discord
           // This is necessary for background tasks that reply after delays
           try {
-            const freshMessage = await message.channel.messages.fetch(message.id);
+            const channel = await client.channels.fetch(channelId);
+            if (!channel || !channel.isTextBased()) {
+              console.error(`[Discord] Channel ${channelId} is not text-based`);
+              return;
+            }
+            const freshMessage = await channel.messages.fetch(messageId);
             await freshMessage.reply(part);
+            console.log(`[Discord] Sent reply using fresh message fetch`);
           } catch (fetchErr) {
-            console.error(`[Discord] Failed to reply to message ${message.id}: ${fetchErr}`);
+            console.error(`[Discord] Failed to reply to message ${messageId} in channel ${channelId}: ${fetchErr}`);
           }
         }
       }
