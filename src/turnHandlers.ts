@@ -70,7 +70,7 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
     }
     if (queued.status === "pending") {
       await ctx.send(
-        `A proposal is already pending for this session (${queued.proposalId}). Use /pending, /accept ${queued.proposalId}, or /reject ${queued.proposalId}.`
+        `A proposal is already pending for this session (${queued.proposalId}). Use pending, accept ${queued.proposalId}, or reject ${queued.proposalId}.`
       );
       return "break";
     }

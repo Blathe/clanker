@@ -124,9 +124,9 @@ The agent responds in one of four structured formats:
 
 Delegation review commands (all transports):
 
-- `/pending` â€” show the current pending delegated proposal for this session
-- `/accept` or `/accept <proposalId>` â€” apply the pending proposal patch
-- `/reject` or `/reject <proposalId>` â€” discard the pending proposal patch
+- `pending` — show the current pending delegated proposal for this session
+- `accept` or `accept <proposalId>` — apply the pending proposal patch
+- `reject` or `reject <proposalId>` — discard the pending proposal patch
 
 ## Configuration
 
@@ -142,6 +142,21 @@ Rules are evaluated in order; first match wins. Default action is **block**.
 | `ENABLE_CLAUDE_DELEGATE` | Enables delegate actions that invoke the `claude` CLI |
 | `DISCORD_UNSAFE_ENABLE_WRITES` | Allows Discord-triggered write/delegate actions (unsafe) |
 | `SHELL_BIN` | Optional shell path override used by command execution |
+
+### Runtime Tuning Overrides
+
+Optional `CLANKER_*` overrides are available for model and safety/performance limits:
+
+- `CLANKER_OPENAI_MODEL`, `CLANKER_OPENAI_MAX_TOKENS`
+- `CLANKER_MAX_HISTORY`, `CLANKER_MAX_SESSIONS`, `CLANKER_MAX_USER_INPUT`
+- `CLANKER_MAX_COMMAND_LENGTH`, `CLANKER_MAX_OUTPUT_BYTES`
+- `CLANKER_QUEUE_MAX_CONCURRENT_JOBS`
+- `CLANKER_DELEGATE_PROPOSAL_TTL_MS`
+- `CLANKER_DELEGATE_DIFF_PREVIEW_MAX_LINES`, `CLANKER_DELEGATE_DIFF_PREVIEW_MAX_CHARS`
+- `CLANKER_DELEGATE_FILE_DIFF_MAX_LINES`, `CLANKER_DELEGATE_FILE_DIFF_MAX_CHARS`
+- `CLANKER_LOGGER_MAX_OUT`, `CLANKER_LOGGER_MAX_CMD`, `CLANKER_LOGGER_MAX_MSG`
+
+`npm run doctor` validates these overrides and fails on invalid values.
 
 | Rule | Matches | Action |
 |------|---------|--------|
@@ -190,7 +205,7 @@ The local REPL supports these built-in slash commands:
 | `/clear` | Clear the current conversation history |
 | `/exit`  | Gracefully exit the agent |
 
-Delegation control commands are also handled in chat: `/pending`, `/accept`, `/reject`.
+Delegation control commands are handled in chat as conversational keywords: `pending`, `accept`, `reject`.
 
 ## Project Structure
 
@@ -263,7 +278,7 @@ Available slash commands:
 - Most network operations are blocked by default (`curl` is explicitly allowed)
 - Destructive operations (`rm -rf`) are blocked
 - Write operations and file edits require passphrase authentication
-- Delegated file changes are proposed first and are only applied after `/accept`
+- Delegated file changes are proposed first and are only applied after `accept`
 - Discord users cannot trigger write, apply, or delegate actions unless `DISCORD_UNSAFE_ENABLE_WRITES=1`
 - Policies are evaluated in order; customize `policy.json` for your needs
 

@@ -140,6 +140,7 @@ To generate a new hash: `node -e "const {createHash}=require('crypto'); console.
 | `DISCORD_UNSAFE_ENABLE_WRITES` | No | `1`/`true` = Discord can trigger write/delegate actions (dangerous) |
 | `ENABLE_CLAUDE_DELEGATE` | No | `1`/`true` = enable `delegate` action via Anthropic Agent SDK |
 | `SHELL_BIN` | No | Override shell for command execution (default: bash, or Git Bash on Windows) |
+| `CLANKER_*` runtime tuning overrides | No | Optional numeric/model limits (history, queue, diff truncation, logger caps, OpenAI model/tokens); validated by `npm run doctor` |
 
 ## Transports
 
@@ -190,15 +191,15 @@ When `ENABLE_CLAUDE_DELEGATE=1` and `ANTHROPIC_API_KEY` is set, the agent can de
 
 - Run in a separate isolated git worktree with access to Claude Code tools
 - Have their own policy evaluation (delegated commands are still checked against `policy.json`)
-- Return results as a proposal diff with `/accept` and `/reject` controls
+- Return results as a proposal diff with `accept` and `reject` controls
 - Support any Claude model specified via `CLANKER_CLAUDE_ACTIVE_MODEL`
 
 Example delegate flow:
 1. User: "I need help refactoring this TypeScript module"
 2. Clanker asks Claude to delegate the task
 3. Claude Code (via Agent SDK) explores files, makes edits, runs tests
-4. Results are returned as a pending proposal diff (`/pending`, `/accept`, `/reject`)
-5. Clanker applies changes only after explicit `/accept`
+4. Results are returned as a pending proposal diff (`pending`, `accept`, `reject`)
+5. Clanker applies changes only after explicit `accept`
 
 ## Config Doctor
 

@@ -5,33 +5,63 @@ export type DelegationControlCommand =
   | { type: "reject"; proposalId?: string }
   | { type: "pending" };
 
-function parseSingleOptionalArgCommand(
-  raw: string,
-  command: "/accept" | "/reject"
-): DelegationControlCommand {
-  const parts = raw.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) return { type: command.slice(1) as "accept" | "reject" };
-  if (parts.length === 2) {
-    return { type: command.slice(1) as "accept" | "reject", proposalId: parts[1] };
-  }
-  return {
-    type: "invalid",
-    error: `Usage: ${command} or ${command} <proposalId>`,
-  };
+export interface DelegationControlParseOptions {
+  hasPendingProposal?: boolean;
 }
 
-export function parseDelegationControlCommand(input: string): DelegationControlCommand {
-  const raw = input.trim();
-  if (!raw.startsWith("/")) return { type: "none" };
-  if (raw === "/pending") return { type: "pending" };
-  if (raw.startsWith("/pending ")) {
-    return { type: "invalid", error: "Usage: /pending" };
+function normalizeInput(input: string): string {
+  return input.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function extractProposalId(normalizedInput: string): string | undefined {
+  const match = normalizedInput.match(/\bp-[a-z0-9-]+\b/i);
+  return match ? match[0].toLowerCase() : undefined;
+}
+
+export function parseDelegationControlCommand(
+  input: string,
+  options: DelegationControlParseOptions = {}
+): DelegationControlCommand {
+  const normalizedInput = normalizeInput(input);
+  if (!normalizedInput) return { type: "none" };
+
+  if (/(?:^|\s)\/(?:accept|reject|pending)\b/i.test(normalizedInput)) {
+    return {
+      type: "invalid",
+      error: "Slash delegation commands are no longer supported. Use accept, reject, or pending.",
+    };
   }
-  if (raw === "/accept" || raw.startsWith("/accept ")) {
-    return parseSingleOptionalArgCommand(raw, "/accept");
+
+  const hasAccept = /\baccept\b/.test(normalizedInput);
+  const hasReject = /\breject\b/.test(normalizedInput);
+  const hasPending = /\bpending\b/.test(normalizedInput);
+  const proposalId = extractProposalId(normalizedInput);
+  const hasPendingProposal = options.hasPendingProposal ?? false;
+
+  if (hasAccept && hasReject) {
+    return {
+      type: "invalid",
+      error: "Delegation control intent is ambiguous: both accept and reject were found.",
+    };
   }
-  if (raw === "/reject" || raw.startsWith("/reject ")) {
-    return parseSingleOptionalArgCommand(raw, "/reject");
+
+  if (hasAccept) {
+    if (!hasPendingProposal && !proposalId) {
+      return { type: "none" };
+    }
+    return proposalId ? { type: "accept", proposalId } : { type: "accept" };
   }
+
+  if (hasReject) {
+    if (!hasPendingProposal && !proposalId) {
+      return { type: "none" };
+    }
+    return proposalId ? { type: "reject", proposalId } : { type: "reject" };
+  }
+
+  if (hasPending) {
+    return { type: "pending" };
+  }
+
   return { type: "none" };
 }

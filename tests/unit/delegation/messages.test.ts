@@ -38,6 +38,10 @@ describe("delegate proposal message formatting", () => {
     expect(output).toContain("File: README.md");
     expect(output).toContain("Language: Markdown");
     expect(output).toContain("```diff");
+    expect(output).toContain("accept p-1");
+    expect(output).toContain("reject p-1");
+    expect(output).not.toContain("/accept");
+    expect(output).not.toContain("/reject");
   });
 
   test("truncates oversized per-file diffs", () => {

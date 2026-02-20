@@ -1,19 +1,20 @@
 import type { DelegateResult } from "./types.js";
 import type { PendingProposal } from "./proposals.js";
+import { getRuntimeConfig } from "../runtimeConfig.js";
 
 function iso(ts: number): string {
   return new Date(ts).toISOString();
 }
 
-const MAX_FILE_DIFF_CHARS = 1400;
-const MAX_FILE_DIFF_LINES = 120;
-
 function truncateDiff(diff: string): string {
+  const runtimeConfig = getRuntimeConfig();
+  const maxLines = runtimeConfig.delegateFileDiffMaxLines;
+  const maxChars = runtimeConfig.delegateFileDiffMaxChars;
   const lines = diff.split("\n");
-  const clippedByLines = lines.slice(0, MAX_FILE_DIFF_LINES).join("\n");
+  const clippedByLines = lines.slice(0, maxLines).join("\n");
   let clipped = clippedByLines;
-  if (clipped.length > MAX_FILE_DIFF_CHARS) {
-    clipped = clipped.slice(0, MAX_FILE_DIFF_CHARS);
+  if (clipped.length > maxChars) {
+    clipped = clipped.slice(0, maxChars);
   }
   const truncated = clipped.length < diff.length;
   return truncated ? `${clipped}\n... [diff truncated]` : clipped;
@@ -59,7 +60,7 @@ export function formatPendingProposalMessages(proposal: PendingProposal): string
     }
   }
 
-  messages.push(`Use /accept ${proposal.id} to apply or /reject ${proposal.id} to discard.`);
+  messages.push(`Use accept ${proposal.id} to apply or reject ${proposal.id} to discard.`);
   return messages;
 }
 
@@ -97,7 +98,7 @@ export function formatDelegateCompletionMessages(result: DelegateResult): string
       }
     }
 
-    messages.push(`Use /accept ${proposal.id} to apply or /reject ${proposal.id} to discard.`);
+    messages.push(`Use accept ${proposal.id} to apply or reject ${proposal.id} to discard.`);
     return messages;
   }
 

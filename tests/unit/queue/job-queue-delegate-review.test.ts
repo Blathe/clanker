@@ -46,8 +46,8 @@ describe("JobQueue delegate review messaging", () => {
 
     const sent = send.mock.calls.map((call) => String(call[0])).join("\n");
     expect(sent).toContain("p-1");
-    expect(sent).toContain("/accept p-1");
-    expect(sent).toContain("/reject p-1");
+    expect(sent).toContain("accept p-1");
+    expect(sent).toContain("reject p-1");
     expect(sent).toContain("src/a.ts");
     expect(sent).toContain("Here are the proposed changes to the repo-a project.");
     expect(sent).toContain("Language: TypeScript");

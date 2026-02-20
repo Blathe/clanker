@@ -66,7 +66,9 @@ function expireStaleForSession(deps: ApprovalDeps): { expiredForSession: boolean
 }
 
 export async function handleDelegationControlCommand(deps: ApprovalDeps): Promise<ApprovalResult> {
-  const parsed = parseDelegationControlCommand(deps.userInput);
+  const parsed = parseDelegationControlCommand(deps.userInput, {
+    hasPendingProposal: deps.proposalStore.hasPending(deps.sessionId),
+  });
   if (parsed.type === "none") return { handled: false };
 
   const { expiredForSession } = expireStaleForSession(deps);

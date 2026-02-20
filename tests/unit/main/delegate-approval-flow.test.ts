@@ -55,7 +55,7 @@ describe("delegation approval flow", () => {
   }
 
   test("accept applies patch and removes proposal", async () => {
-    const { deps, sends, store } = makeDeps({ userInput: "/accept" });
+    const { deps, sends, store } = makeDeps({ userInput: "accept" });
     store.createProposal(baseProposal);
 
     const res = await handleDelegationControlCommand(deps);
@@ -68,7 +68,7 @@ describe("delegation approval flow", () => {
   test("reject discards proposal and cleans up", async () => {
     const cleanup = jest.fn();
     const { deps, sends, store } = makeDeps({
-      userInput: "/reject",
+      userInput: "reject",
       cleanupProposal: cleanup,
     });
     store.createProposal(baseProposal);
@@ -83,7 +83,7 @@ describe("delegation approval flow", () => {
 
   test("accept is blocked when preconditions fail and keeps proposal", async () => {
     const { deps, sends, store } = makeDeps({
-      userInput: "/accept",
+      userInput: "accept",
       verifyApplyPreconditions: () => ({ ok: false, error: "HEAD changed" }),
     });
     store.createProposal(baseProposal);
@@ -98,7 +98,7 @@ describe("delegation approval flow", () => {
   test("expired proposal is discarded before accept", async () => {
     const cleanup = jest.fn();
     const { deps, sends, store } = makeDeps({
-      userInput: "/accept",
+      userInput: "accept",
       now: () => 2_001,
       cleanupProposal: cleanup,
     });
@@ -110,5 +110,15 @@ describe("delegation approval flow", () => {
     expect(sends.join("\n")).toContain("expired");
     expect(cleanup).toHaveBeenCalledTimes(1);
     expect(store.getProposal("s-1")).toBeNull();
+  });
+
+  test("slash-style controls return migration guidance", async () => {
+    const { deps, sends } = makeDeps({ userInput: "/accept p-1" });
+    const res = await handleDelegationControlCommand(deps);
+    expect(res.handled).toBe(true);
+    expect(sends.join("\n")).toContain("no longer supported");
+    expect(sends.join("\n")).toContain("accept");
+    expect(sends.join("\n")).toContain("reject");
+    expect(sends.join("\n")).toContain("pending");
   });
 });
