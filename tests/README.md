@@ -82,7 +82,8 @@ describe('Feature Name', () => {
 
 **Policy Tests** (`unit/policy/patterns.test.ts` — 73 tests)
 - ✅ Allow-reads rule: ls, cat, grep, find, pwd, which, env, etc.
-- ✅ Block-network rule: curl, wget, nc, ssh, scp
+- ✅ Allow-curl rule: curl (without command chaining)
+- ✅ Block-network rule: wget, nc, ssh, scp
 - ✅ Block-rm-rf rule: rm -rf dangerous patterns
 - ✅ Secret-for-write rule: tee, mv, cp, mkdir, touch, chmod, sed, redirects
 - ✅ Allow-git-commands rule: status, log, diff, add, commit, fetch, pull, merge (blocks --hard, --force, -D, -f)

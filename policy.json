@@ -2,8 +2,14 @@
     "default_action": "block",
     "rules": [
         {
+            "id": "allow-curl",
+            "pattern": "^curl\\b(?:\\s+(?:[^;|&]|\\\\[;|&])*)?$",
+            "action": "allow",
+            "description": "Allow curl network requests (no command chaining)"
+        },
+        {
             "id": "block-network",
-            "pattern": "\\b(curl|wget|nc|ssh|scp)\\b",
+            "pattern": "\\b(wget|nc|ssh|scp)\\b",
             "action": "block",
             "description": "Network commands blocked"
         },

@@ -193,6 +193,21 @@ export function runCommand(input: ExecuteCommandInput): ExecutionResult {
   };
 }
 
-export function formatResult(result: ExecutionResult): string {
-  return `Exit code: ${result.exit_code}\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`;
+export function formatResult(result: ExecutionResult, message?: string): string {
+  const summary =
+    message?.trim() ||
+    (result.success ? "Command completed." : "Command failed.");
+
+  const output = [result.stdout, result.stderr]
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .join("\n");
+
+  if (!output) {
+    return result.success
+      ? summary
+      : `${summary}\n\nNo output was produced.`;
+  }
+
+  return `${summary}\n\n${output}`;
 }

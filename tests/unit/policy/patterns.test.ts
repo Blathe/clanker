@@ -83,19 +83,47 @@ describe('Policy Regex Patterns', () => {
 
     const testCases: TestCase[] = [
       // Network commands that should be blocked
-      { cmd: 'curl https://example.com', shouldMatch: true },
       { cmd: 'wget https://example.com', shouldMatch: true },
       { cmd: 'ssh user@host', shouldMatch: true },
       { cmd: 'scp file user@host:/path', shouldMatch: true },
       { cmd: 'nc -l 8080', shouldMatch: true },
 
       // Non-network commands that should not be blocked
+      { cmd: 'curl https://example.com', shouldMatch: false },
       { cmd: 'ls', shouldMatch: false },
       { cmd: 'echo hello', shouldMatch: false },
     ];
 
     test.each(testCases)(
       'should ${shouldMatch ? "block" : "allow"}: "$cmd"',
+      ({ cmd, shouldMatch }) => {
+        const matches = regex.test(cmd);
+        expect(matches).toBe(shouldMatch);
+      }
+    );
+  });
+
+  describe('allow-curl rule', () => {
+    const rule = policy.rules.find((r: any) => r.id === 'allow-curl');
+    const regex = new RegExp(rule.pattern);
+
+    const testCases: TestCase[] = [
+      // curl commands that should be allowed
+      { cmd: 'curl https://example.com', shouldMatch: true },
+      { cmd: 'curl -I https://example.com', shouldMatch: true },
+      { cmd: 'curl -sS https://example.com', shouldMatch: true },
+
+      // Command chaining attempts should not match allow-curl
+      { cmd: 'curl https://example.com | jq .', shouldMatch: false },
+      { cmd: 'curl https://example.com; rm -rf /', shouldMatch: false },
+      { cmd: 'curl https://example.com && echo done', shouldMatch: false },
+
+      // Other network commands should not match allow-curl
+      { cmd: 'wget https://example.com', shouldMatch: false },
+    ];
+
+    test.each(testCases)(
+      'should ${shouldMatch ? "allow" : "not match"}: "$cmd"',
       ({ cmd, shouldMatch }) => {
         const matches = regex.test(cmd);
         expect(matches).toBe(shouldMatch);
@@ -192,6 +220,16 @@ describe('Policy Regex Patterns', () => {
   });
 
   describe('Policy rule priorities (first match wins)', () => {
+    test('allow-curl should allow curl while block-network does not match curl', () => {
+      const allowCurl = policy.rules.find((r: any) => r.id === 'allow-curl');
+      const blockNetwork = policy.rules.find((r: any) => r.id === 'block-network');
+
+      const cmd = 'curl https://example.com';
+
+      expect(new RegExp(allowCurl.pattern).test(cmd)).toBe(true);
+      expect(new RegExp(blockNetwork.pattern).test(cmd)).toBe(false);
+    });
+
     test('allow-reads should match before block-network when command uses grep with pipe', () => {
       const allowReads = policy.rules.find((r: any) => r.id === 'allow-reads');
       const blockNetwork = policy.rules.find((r: any) => r.id === 'block-network');
