@@ -105,7 +105,7 @@ The LLM must return one of four JSON shapes (`LLMResponse` in `types.ts`):
 |------|--------|--------|
 | `command` | `command`, `working_dir?`, `explanation` | Runs a shell command through the policy gate |
 | `edit` | `file`, `old`, `new`, `explanation` | Replaces exact text in a file (requires passphrase unless Discord unsafe mode) |
-| `delegate` | `prompt`, `explanation` | Delegates to Claude Code in isolated review mode; returns a proposal diff that must be accepted/rejected (requires `ENABLE_CLAUDE_DELEGATE=1` and `ANTHROPIC_API_KEY`) |
+| `delegate` | `prompt`, `working_dir?`, `explanation` | Delegates to Claude Code in isolated review mode; returns a proposal diff that must be accepted/rejected (requires `ENABLE_CLAUDE_DELEGATE=1` and `ANTHROPIC_API_KEY`) |
 | `message` | `explanation` | Replies with text only, no action |
 
 ## Policy Rules (policy.json)

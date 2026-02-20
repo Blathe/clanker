@@ -1,7 +1,7 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import type { Channel, SendFn } from "../runtime.js";
 import { parseDelegationControlCommand } from "./commandParser.js";
-import { formatPendingProposalMessage } from "./messages.js";
+import { formatPendingProposalMessages } from "./messages.js";
 import type { PendingProposal, ProposalStore } from "./proposals.js";
 
 export interface ApprovalDeps {
@@ -84,7 +84,9 @@ export async function handleDelegationControlCommand(deps: ApprovalDeps): Promis
       pushHistory(deps.history, "No pending delegated proposal.");
       return { handled: true };
     }
-    await deps.send(formatPendingProposalMessage(pending));
+    for (const msg of formatPendingProposalMessages(pending)) {
+      await deps.send(msg);
+    }
     pushHistory(deps.history, `Pending proposal shown: ${pending.id}`);
     return { handled: true };
   }

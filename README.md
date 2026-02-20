@@ -119,7 +119,7 @@ The agent responds in one of four structured formats:
 |------|-------------|
 | `command` | Run a shell command (subject to policy evaluation) |
 | `edit` | Apply a targeted find-and-replace to a single file (requires passphrase) |
-| `delegate` | Hand off a complex programming task to Claude Code |
+| `delegate` | Hand off a complex programming task to Claude Code (supports optional `working_dir`) |
 | `message` | Plain text reply with no action |
 
 Delegation review commands (all transports):

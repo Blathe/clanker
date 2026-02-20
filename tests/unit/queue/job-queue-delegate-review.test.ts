@@ -20,10 +20,23 @@ describe("JobQueue delegate review messaging", () => {
         summary: "Implemented refactor",
         proposal: {
           id: "p-1",
+          projectName: "repo-a",
           expiresAt: 1_700_000_900_000,
           changedFiles: ["src/a.ts", "src/b.ts"],
           diffStat: " src/a.ts | 2 +-\n src/b.ts | 3 ++-",
           diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+          fileDiffs: [
+            {
+              filePath: "src/a.ts",
+              language: "TypeScript",
+              diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;\n",
+            },
+            {
+              filePath: "src/b.ts",
+              language: "TypeScript",
+              diff: "diff --git a/src/b.ts b/src/b.ts\n+const b = 2;\n",
+            },
+          ],
         },
       })
     );
@@ -36,6 +49,10 @@ describe("JobQueue delegate review messaging", () => {
     expect(sent).toContain("/accept p-1");
     expect(sent).toContain("/reject p-1");
     expect(sent).toContain("src/a.ts");
+    expect(sent).toContain("Here are the proposed changes to the repo-a project.");
+    expect(sent).toContain("Language: TypeScript");
+    expect(sent).toContain("```diff");
+    expect(send.mock.calls.length).toBeGreaterThanOrEqual(4);
     expect(history.length).toBe(2);
   });
 

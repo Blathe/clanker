@@ -11,6 +11,7 @@ describe("delegation approval flow", () => {
     sessionId: "s-1",
     createdAt: 1000,
     expiresAt: 2000,
+    projectName: "repo",
     repoRoot: "/repo",
     baseHead: "abc123",
     worktreePath: "/tmp/wt-1",
@@ -18,6 +19,13 @@ describe("delegation approval flow", () => {
     changedFiles: ["src/a.ts"],
     diffStat: " src/a.ts | 2 +-",
     diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+    fileDiffs: [
+      {
+        filePath: "src/a.ts",
+        language: "TypeScript",
+        diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;\n",
+      },
+    ],
     delegateSummary: "done",
     delegateExitCode: 0,
   };

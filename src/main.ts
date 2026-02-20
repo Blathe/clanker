@@ -346,10 +346,15 @@ function expireStaleProposals(now = Date.now()): void {
   }
 }
 
-async function delegateToClaudeWithReview(sessionId: string, delegatePrompt: string): Promise<DelegateResult> {
+async function delegateToClaudeWithReview(
+  sessionId: string,
+  delegatePrompt: string,
+  workingDir?: string
+): Promise<DelegateResult> {
   const result = await runDelegationInIsolatedWorktree({
     sessionId,
     prompt: delegatePrompt,
+    repoRoot: workingDir,
     runDelegate: (prompt, cwd) => delegateToClaude(prompt, cwd),
   });
 
@@ -372,10 +377,12 @@ async function delegateToClaudeWithReview(sessionId: string, delegatePrompt: str
       summary: result.summary,
       proposal: {
         id: result.proposal.id,
+        projectName: result.proposal.projectName,
         expiresAt: result.proposal.expiresAt,
         changedFiles: result.proposal.changedFiles,
         diffStat: result.proposal.diffStat,
         diffPreview: result.proposal.diffPreview,
+        fileDiffs: result.proposal.fileDiffs,
       },
     };
   }
@@ -452,6 +459,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
 
       const queueDelegate = (
         prompt: string,
+        workingDir: string | undefined,
         sendFn: SendFn,
         history: ChatCompletionMessageParam[]
       ): QueueDelegateResult => {
@@ -464,7 +472,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
 
         const queued = jobQueue.enqueue(
           { id: randomUUID(), sessionId, prompt, send: sendFn, history },
-          (delegatePrompt: string) => delegateToClaudeWithReview(sessionId, delegatePrompt)
+          (delegatePrompt: string) => delegateToClaudeWithReview(sessionId, delegatePrompt, workingDir)
         );
         return queued ? { status: "queued" } : { status: "full" };
       };
@@ -477,7 +485,8 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         discordUnsafeEnableWrites: DISCORD_UNSAFE_ENABLE_WRITES,
         delegateEnabled: ENABLE_CLAUDE_DELEGATE,
         promptSecret,
-        delegateToClaude: (prompt) => delegateToClaudeWithReview(sessionId, prompt),
+        delegateToClaude: (prompt, workingDir) =>
+          delegateToClaudeWithReview(sessionId, prompt, workingDir),
         queueDelegate,
       });
       if (outcome === "continue") {

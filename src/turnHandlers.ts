@@ -4,7 +4,7 @@ import { runCommand, formatResult, applyEdit, validateCommandLength } from "./ex
 import type { LLMResponse } from "./types.js";
 import type { Channel, SendFn } from "./runtime.js";
 import type { DelegateResult } from "./delegation/types.js";
-import { formatDelegateCompletionMessage } from "./delegation/messages.js";
+import { formatDelegateCompletionMessages } from "./delegation/messages.js";
 import {
   logVerdict,
   logSecretVerification,
@@ -28,9 +28,10 @@ interface TurnActionContext {
   discordUnsafeEnableWrites: boolean;
   delegateEnabled: boolean;
   promptSecret: (question: string) => Promise<string>;
-  delegateToClaude: (delegatePrompt: string) => Promise<DelegateResult>;
+  delegateToClaude: (delegatePrompt: string, workingDir?: string) => Promise<DelegateResult>;
   queueDelegate?: (
     prompt: string,
+    workingDir: string | undefined,
     send: SendFn,
     history: ChatCompletionMessageParam[]
   ) => QueueDelegateResult;
@@ -57,7 +58,12 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
 
   // Try async queueing if available
   if (ctx.queueDelegate) {
-    const queued = ctx.queueDelegate(ctx.response.prompt, ctx.send, ctx.history);
+    const queued = ctx.queueDelegate(
+      ctx.response.prompt,
+      ctx.response.working_dir,
+      ctx.send,
+      ctx.history
+    );
     if (queued.status === "full") {
       await ctx.send("The job queue is full. Please try again shortly.");
       return "break";
@@ -78,11 +84,13 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
   await ctx.send("[DELEGATING TO CLAUDE]");
 
   try {
-    const result = await ctx.delegateToClaude(ctx.response.prompt);
+    const result = await ctx.delegateToClaude(ctx.response.prompt, ctx.response.working_dir);
     const { exitCode, summary } = result;
     logDelegate(exitCode, summary.length);
     await ctx.send(`[CLAUDE DONE] Exit code: ${exitCode}`);
-    await ctx.send(formatDelegateCompletionMessage(result));
+    for (const msg of formatDelegateCompletionMessages(result)) {
+      await ctx.send(msg);
+    }
     return "break";
   } catch (err) {
     const msg = `[DELEGATE ERROR] ${err}`;

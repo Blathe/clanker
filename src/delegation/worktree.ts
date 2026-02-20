@@ -1,9 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { PendingProposal } from "./proposals.js";
+import type { ProposalFileDiff } from "./types.js";
 
 export interface GitRunResult {
   code: number;
@@ -53,9 +54,40 @@ function previewFromDiff(diff: string, maxLines = 80, maxChars = 3000): string {
   return limitedLines.length > maxChars ? limitedLines.slice(0, maxChars) : limitedLines;
 }
 
+function inferLanguage(filePath: string): string {
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith(".ts") || lower.endsWith(".tsx")) return "TypeScript";
+  if (lower.endsWith(".js") || lower.endsWith(".jsx") || lower.endsWith(".mjs") || lower.endsWith(".cjs")) return "JavaScript";
+  if (lower.endsWith(".py")) return "Python";
+  if (lower.endsWith(".go")) return "Go";
+  if (lower.endsWith(".rs")) return "Rust";
+  if (lower.endsWith(".java")) return "Java";
+  if (lower.endsWith(".cs")) return "C#";
+  if (lower.endsWith(".c")) return "C";
+  if (lower.endsWith(".cpp") || lower.endsWith(".cc") || lower.endsWith(".cxx") || lower.endsWith(".hpp") || lower.endsWith(".h")) return "C++";
+  if (lower.endsWith(".php")) return "PHP";
+  if (lower.endsWith(".rb")) return "Ruby";
+  if (lower.endsWith(".swift")) return "Swift";
+  if (lower.endsWith(".kt") || lower.endsWith(".kts")) return "Kotlin";
+  if (lower.endsWith(".scala")) return "Scala";
+  if (lower.endsWith(".sh") || lower.endsWith(".bash")) return "Shell";
+  if (lower.endsWith(".sql")) return "SQL";
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "HTML";
+  if (lower.endsWith(".css")) return "CSS";
+  if (lower.endsWith(".scss")) return "SCSS";
+  if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "Markdown";
+  if (lower.endsWith(".json")) return "JSON";
+  if (lower.endsWith(".yaml") || lower.endsWith(".yml")) return "YAML";
+  if (lower.endsWith(".xml")) return "XML";
+  if (lower.endsWith(".toml")) return "TOML";
+  if (lower.endsWith(".dockerfile") || lower === "dockerfile") return "Dockerfile";
+  return "Text";
+}
+
 export interface WorktreeDelegationInput {
   sessionId: string;
   prompt: string;
+  repoRoot?: string;
   runDelegate: (prompt: string, cwd: string) => Promise<{ exitCode: number; summary: string }>;
   ttlMs?: number;
   now?: () => number;
@@ -86,11 +118,12 @@ export async function runDelegationInIsolatedWorktree(
   const createTempDir = input.createTempDir ?? defaultCreateTempDir;
   const writeTextFile = input.writeTextFile ?? defaultWriteTextFile;
   const removePath = input.removePath ?? defaultRemovePath;
+  const locateFrom = (input.repoRoot && input.repoRoot.trim()) || process.cwd();
 
   const repoRoot = runGitOrThrow(
     runGit,
     ["rev-parse", "--show-toplevel"],
-    process.cwd(),
+    locateFrom,
     "Failed to locate git repository"
   ).stdout.trim();
 
@@ -159,6 +192,19 @@ export async function runDelegationInIsolatedWorktree(
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
+    const fileDiffs: ProposalFileDiff[] = changedFiles.map((filePath) => {
+      const diff = runGitOrThrow(
+        runGit,
+        ["diff", "--no-color", "--", filePath],
+        worktreePath,
+        `Failed to build per-file diff for ${filePath}`
+      ).stdout;
+      return {
+        filePath,
+        language: inferLanguage(filePath),
+        diff,
+      };
+    });
 
     writeTextFile(patchPath, diff);
     const createdAt = now();
@@ -170,6 +216,7 @@ export async function runDelegationInIsolatedWorktree(
         sessionId: input.sessionId,
         createdAt,
         expiresAt: createdAt + ttlMs,
+        projectName: basename(repoRoot) || "project",
         repoRoot,
         baseHead,
         worktreePath,
@@ -177,6 +224,7 @@ export async function runDelegationInIsolatedWorktree(
         changedFiles,
         diffStat,
         diffPreview: previewFromDiff(diff),
+        fileDiffs,
         delegateSummary: delegated.summary,
         delegateExitCode: delegated.exitCode,
       },

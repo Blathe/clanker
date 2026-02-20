@@ -9,6 +9,7 @@ function sampleInput(overrides: Partial<CreateProposalInput> = {}): CreatePropos
     sessionId: "s-1",
     createdAt: 1_700_000_000_000,
     expiresAt: 1_700_000_900_000,
+    projectName: "repo",
     repoRoot: "/repo",
     baseHead: "abc123",
     worktreePath: "/tmp/wt-1",
@@ -16,6 +17,13 @@ function sampleInput(overrides: Partial<CreateProposalInput> = {}): CreatePropos
     changedFiles: ["src/a.ts"],
     diffStat: " src/a.ts | 2 +-",
     diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+    fileDiffs: [
+      {
+        filePath: "src/a.ts",
+        language: "TypeScript",
+        diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;\n",
+      },
+    ],
     delegateSummary: "Updated file",
     delegateExitCode: 0,
     ...overrides,

@@ -1,8 +1,11 @@
+import type { ProposalFileDiff } from "./types.js";
+
 export interface PendingProposal {
   id: string;
   sessionId: string;
   createdAt: number;
   expiresAt: number;
+  projectName: string;
   repoRoot: string;
   baseHead: string;
   worktreePath: string;
@@ -10,6 +13,7 @@ export interface PendingProposal {
   changedFiles: string[];
   diffStat: string;
   diffPreview: string;
+  fileDiffs: ProposalFileDiff[];
   delegateSummary: string;
   delegateExitCode: number;
 }

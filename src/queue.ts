@@ -5,7 +5,7 @@
 
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import type { DelegateResult } from "./delegation/types.js";
-import { formatDelegateCompletionMessage } from "./delegation/messages.js";
+import { formatDelegateCompletionMessages } from "./delegation/messages.js";
 
 export type SendFn = (text: string) => Promise<void>;
 
@@ -64,13 +64,15 @@ export class JobQueue {
       console.log(`[JobQueue] Starting delegation task ${job.id}`);
       const result = await delegateFn(job.prompt);
       console.log(`[JobQueue] Delegation task ${job.id} completed, sending notification`);
-      const completionMessage = formatDelegateCompletionMessage(result);
+      const completionMessages = formatDelegateCompletionMessages(result);
       job.history.push({
         role: "user",
-        content: `[Background task completed] ${completionMessage}`,
+        content: `[Background task completed] ${completionMessages.join("\n\n")}`,
       });
       try {
-        await job.send(completionMessage);
+        for (const msg of completionMessages) {
+          await job.send(msg);
+        }
         console.log(`[JobQueue] Successfully sent notification for task ${job.id}`);
       } catch (err) {
         console.error(`[JobQueue] Failed to send notification for task ${job.id}: ${err}`);
