@@ -105,7 +105,7 @@ The LLM must return one of four JSON shapes (`LLMResponse` in `types.ts`):
 |------|--------|--------|
 | `command` | `command`, `working_dir?`, `explanation` | Runs a shell command through the policy gate |
 | `edit` | `file`, `old`, `new`, `explanation` | Replaces exact text in a file (requires passphrase unless Discord unsafe mode) |
-| `delegate` | `prompt`, `explanation` | Delegates to Claude Code via Anthropic Agent SDK (requires `ENABLE_CLAUDE_DELEGATE=1` and `ANTHROPIC_API_KEY`) |
+| `delegate` | `prompt`, `explanation` | Delegates to Claude Code in isolated review mode; returns a proposal diff that must be accepted/rejected (requires `ENABLE_CLAUDE_DELEGATE=1` and `ANTHROPIC_API_KEY`) |
 | `message` | `explanation` | Replies with text only, no action |
 
 ## Policy Rules (policy.json)
@@ -114,7 +114,8 @@ Rules are evaluated in order; first match wins. Default is `"block"` (deny by de
 
 | id | pattern | action |
 |----|---------|--------|
-| `block-network` | curl, wget, nc, ssh, scp | blocked |
+| `allow-curl` | curl (without command chaining) | allowed |
+| `block-network` | wget, nc, ssh, scp | blocked |
 | `block-rm-rf` | `rm -rf` patterns | blocked |
 | `secret-for-write` | tee, mv, cp, mkdir, touch, chmod, dd, sed, redirects | requires passphrase |
 | `allow-git-remote-v` | `git remote -v` exactly | allowed |
@@ -163,7 +164,7 @@ Clanker maintains a brief log of each session so the agent can resume with conte
 
 Session logs live in `sessions/` (git-ignored). File names follow the pattern `YYYY-MM-DDTHH-MM-SS_<pid>.jsonl`. Each line is a JSON object with a `t` (unix timestamp) and `ev` (event type) field.
 
-Event types: `start`, `user`, `llm`, `policy`, `auth`, `cmd`, `edit`, `delegate`, `summary`, `end`.
+Event types: `start`, `user`, `llm`, `policy`, `auth`, `cmd`, `edit`, `delegate`, `proposal`, `summary`, `end`.
 
 ## Persistent Agent Memory
 
@@ -175,7 +176,7 @@ Event types: `start`, `user`, `llm`, `policy`, `auth`, `cmd`, `edit`, `delegate`
 # Basic setup (OpenAI only)
 OPENAI_API_KEY=sk-... npm start
 > list files in current directory    # allow-reads rule → executed
-> download something from the web    # block-network rule → blocked
+> download something with wget from the web    # block-network rule → blocked
 > create a new directory called foo  # secret-for-write → prompts for passphrase
 
 # With Claude delegation enabled
@@ -187,17 +188,17 @@ OPENAI_API_KEY=sk-... ANTHROPIC_API_KEY=sk-ant-... ENABLE_CLAUDE_DELEGATE=1 npm 
 
 When `ENABLE_CLAUDE_DELEGATE=1` and `ANTHROPIC_API_KEY` is set, the agent can delegate complex programming tasks to Claude Code via the Anthropic Agent SDK. Delegated tasks:
 
-- Run in a separate agent session with access to Claude Code tools
+- Run in a separate isolated git worktree with access to Claude Code tools
 - Have their own policy evaluation (delegated commands are still checked against `policy.json`)
-- Return results that are summarized and displayed back to the user
+- Return results as a proposal diff with `/accept` and `/reject` controls
 - Support any Claude model specified via `CLANKER_CLAUDE_ACTIVE_MODEL`
 
 Example delegate flow:
 1. User: "I need help refactoring this TypeScript module"
 2. Clanker asks Claude to delegate the task
 3. Claude Code (via Agent SDK) explores files, makes edits, runs tests
-4. Results are summarized and returned to the user
-5. Clanker continues the conversation with the summary
+4. Results are returned as a pending proposal diff (`/pending`, `/accept`, `/reject`)
+5. Clanker applies changes only after explicit `/accept`
 
 ## Config Doctor
 

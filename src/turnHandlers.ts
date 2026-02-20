@@ -3,6 +3,8 @@ import { evaluate, verifySecret } from "./policy.js";
 import { runCommand, formatResult, applyEdit, validateCommandLength } from "./executor.js";
 import type { LLMResponse } from "./types.js";
 import type { Channel, SendFn } from "./runtime.js";
+import type { DelegateResult } from "./delegation/types.js";
+import { formatDelegateCompletionMessage } from "./delegation/messages.js";
 import {
   logVerdict,
   logSecretVerification,
@@ -11,10 +13,10 @@ import {
   logDelegate,
 } from "./logger.js";
 
-export interface DelegateResult {
-  exitCode: number;
-  summary: string;
-}
+export type QueueDelegateResult =
+  | { status: "queued" }
+  | { status: "full" }
+  | { status: "pending"; proposalId: string };
 
 export type TurnActionOutcome = "continue" | "break";
 
@@ -27,7 +29,11 @@ interface TurnActionContext {
   delegateEnabled: boolean;
   promptSecret: (question: string) => Promise<string>;
   delegateToClaude: (delegatePrompt: string) => Promise<DelegateResult>;
-  queueDelegate?: (prompt: string, send: SendFn, history: ChatCompletionMessageParam[]) => boolean;
+  queueDelegate?: (
+    prompt: string,
+    send: SendFn,
+    history: ChatCompletionMessageParam[]
+  ) => QueueDelegateResult;
 }
 
 function pushUserHistory(history: ChatCompletionMessageParam[], content: string): void {
@@ -52,10 +58,17 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
   // Try async queueing if available
   if (ctx.queueDelegate) {
     const queued = ctx.queueDelegate(ctx.response.prompt, ctx.send, ctx.history);
-    if (!queued) {
+    if (queued.status === "full") {
       await ctx.send("The job queue is full. Please try again shortly.");
       return "break";
     }
+    if (queued.status === "pending") {
+      await ctx.send(
+        `A proposal is already pending for this session (${queued.proposalId}). Use /pending, /accept ${queued.proposalId}, or /reject ${queued.proposalId}.`
+      );
+      return "break";
+    }
+
     await ctx.send(`Queuing task for Claude: ${ctx.response.explanation}\n\nI'll notify you here when it's done. Feel free to keep chatting!`);
     return "break";
   }
@@ -65,10 +78,11 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
   await ctx.send("[DELEGATING TO CLAUDE]");
 
   try {
-    const { exitCode, summary } = await ctx.delegateToClaude(ctx.response.prompt);
+    const result = await ctx.delegateToClaude(ctx.response.prompt);
+    const { exitCode, summary } = result;
     logDelegate(exitCode, summary.length);
     await ctx.send(`[CLAUDE DONE] Exit code: ${exitCode}`);
-    if (summary) await ctx.send(summary);
+    await ctx.send(formatDelegateCompletionMessage(result));
     return "break";
   } catch (err) {
     const msg = `[DELEGATE ERROR] ${err}`;
@@ -176,7 +190,7 @@ async function handleCommandAction(ctx: TurnActionContext): Promise<TurnActionOu
         working_dir: ctx.response.working_dir,
       });
       logCommandResult(ctx.response.command, result);
-      await ctx.send(formatResult(result));
+      await ctx.send(formatResult(result, ctx.response.explanation));
       return "break";
     }
 
@@ -188,7 +202,7 @@ async function handleCommandAction(ctx: TurnActionContext): Promise<TurnActionOu
         working_dir: ctx.response.working_dir,
       });
       logCommandResult(ctx.response.command, result);
-      const formatted = formatResult(result);
+      const formatted = formatResult(result, ctx.response.explanation);
       await ctx.send(formatted);
       pushUserHistory(ctx.history, `Command output for: ${ctx.response.command}\n${formatted}`);
       return "continue";

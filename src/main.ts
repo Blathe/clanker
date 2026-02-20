@@ -10,16 +10,30 @@ import { loadRuntimePromptContext } from "./context.js";
 import { runDiscordTransport } from "./transports/discord.js";
 import { runReplTransport } from "./transports/repl.js";
 import type { Channel, SendFn } from "./runtime.js";
-import { handleTurnAction, type DelegateResult } from "./turnHandlers.js";
+import { handleTurnAction, type QueueDelegateResult } from "./turnHandlers.js";
 import { JobQueue } from "./queue.js";
 import { envFlagEnabled, parseTransportsDetailed } from "./config.js";
 import { evaluate } from "./policy.js";
+import type { DelegateResult } from "./delegation/types.js";
+import { ProposalStore } from "./delegation/proposals.js";
+import {
+  runDelegationInIsolatedWorktree,
+  verifyProposalApplyPreconditions,
+  applyProposalPatch,
+  cleanupProposalArtifacts,
+} from "./delegation/worktree.js";
+import { handleDelegationControlCommand } from "./delegation/approval.js";
 import {
   initLogger,
   logUserInput,
   logLLMResponse,
   logSessionSummary,
   logSessionEnd,
+  logProposalCreated,
+  logProposalAccepted,
+  logProposalRejected,
+  logProposalExpired,
+  logProposalApplyFailed,
 } from "./logger.js";
 
 if (process.argv.includes("--version") || process.argv.includes("-v")) {
@@ -89,7 +103,7 @@ function promptSecret(question: string): Promise<string> {
   });
 }
 
-async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
+async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<DelegateResult> {
   if (!ENABLE_CLAUDE_DELEGATE) {
     throw new Error("Claude delegation is disabled. Set ENABLE_CLAUDE_DELEGATE=1 to enable it.");
   }
@@ -109,6 +123,7 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
       prompt: delegatePrompt,
       options: {
         model: delegateModel,
+        ...(cwd ? { cwd } : {}),
         tools: { type: "preset", preset: "claude_code" },
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
@@ -306,6 +321,7 @@ class SessionManager {
 
 const sessionManager = new SessionManager();
 const jobQueue = new JobQueue();
+const proposalStore = new ProposalStore();
 const sessionTopics: string[] = [];
 
 initLogger();
@@ -320,6 +336,55 @@ function addTopic(channel: Channel, userInput: string): void {
   if (topicLine) {
     sessionTopics.push(`[${channel}] ${topicLine}`);
   }
+}
+
+function expireStaleProposals(now = Date.now()): void {
+  const expired = proposalStore.expireStale(now);
+  for (const proposal of expired) {
+    cleanupProposalArtifacts(proposal);
+    logProposalExpired(proposal.id);
+  }
+}
+
+async function delegateToClaudeWithReview(sessionId: string, delegatePrompt: string): Promise<DelegateResult> {
+  const result = await runDelegationInIsolatedWorktree({
+    sessionId,
+    prompt: delegatePrompt,
+    runDelegate: (prompt, cwd) => delegateToClaude(prompt, cwd),
+  });
+
+  if (result.proposal) {
+    const created = proposalStore.createProposal(result.proposal);
+    if (!created.ok) {
+      cleanupProposalArtifacts(result.proposal);
+      throw new Error(created.error || "Could not store delegated proposal.");
+    }
+
+    logProposalCreated(
+      result.proposal.id,
+      result.proposal.sessionId,
+      result.proposal.changedFiles.length,
+      result.proposal.expiresAt
+    );
+
+    return {
+      exitCode: result.exitCode,
+      summary: result.summary,
+      proposal: {
+        id: result.proposal.id,
+        expiresAt: result.proposal.expiresAt,
+        changedFiles: result.proposal.changedFiles,
+        diffStat: result.proposal.diffStat,
+        diffPreview: result.proposal.diffPreview,
+      },
+    };
+  }
+
+  return {
+    exitCode: result.exitCode,
+    summary: result.summary,
+    noChanges: result.noChanges,
+  };
 }
 
 async function processTurn(sessionId: string, channel: Channel, userInput: string, send: SendFn): Promise<void> {
@@ -338,8 +403,33 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
 
   state.busy = true;
   try {
+    expireStaleProposals();
+
     state.history.push({ role: "user", content: userInput });
     logUserInput(`[${channel}:${sessionId}] ${userInput}`);
+
+    const control = await handleDelegationControlCommand({
+      channel,
+      sessionId,
+      userInput,
+      discordUnsafeEnableWrites: DISCORD_UNSAFE_ENABLE_WRITES,
+      now: () => Date.now(),
+      send,
+      history: state.history,
+      proposalStore,
+      verifyApplyPreconditions: verifyProposalApplyPreconditions,
+      applyPatch: applyProposalPatch,
+      cleanupProposal: cleanupProposalArtifacts,
+      onProposalExpired: (proposal) => logProposalExpired(proposal.id),
+      onProposalAccepted: (proposal) => logProposalAccepted(proposal.id),
+      onProposalRejected: (proposal) => logProposalRejected(proposal.id),
+      onProposalApplyFailed: (proposal, reason) => logProposalApplyFailed(proposal.id, reason),
+    });
+    if (control.handled) {
+      addTopic(channel, userInput);
+      trimSessionHistory(state.history);
+      return;
+    }
 
     let safetyCounter = 0;
     let broke = false;
@@ -360,11 +450,23 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
       state.history.push({ role: "assistant", content: JSON.stringify(response) });
       logLLMResponse(response);
 
-      const queueDelegate = (prompt: string, sendFn: SendFn, history: ChatCompletionMessageParam[]): boolean => {
-        return jobQueue.enqueue(
+      const queueDelegate = (
+        prompt: string,
+        sendFn: SendFn,
+        history: ChatCompletionMessageParam[]
+      ): QueueDelegateResult => {
+        expireStaleProposals();
+
+        const existing = proposalStore.getProposal(sessionId);
+        if (existing) {
+          return { status: "pending", proposalId: existing.id };
+        }
+
+        const queued = jobQueue.enqueue(
           { id: randomUUID(), sessionId, prompt, send: sendFn, history },
-          delegateToClaude
+          (delegatePrompt: string) => delegateToClaudeWithReview(sessionId, delegatePrompt)
         );
+        return queued ? { status: "queued" } : { status: "full" };
       };
 
       const outcome = await handleTurnAction({
@@ -375,7 +477,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         discordUnsafeEnableWrites: DISCORD_UNSAFE_ENABLE_WRITES,
         delegateEnabled: ENABLE_CLAUDE_DELEGATE,
         promptSecret,
-        delegateToClaude,
+        delegateToClaude: (prompt) => delegateToClaudeWithReview(sessionId, prompt),
         queueDelegate,
       });
       if (outcome === "continue") {

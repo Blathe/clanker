@@ -146,6 +146,39 @@ export function logDelegate(exitCode: number, summaryLen: number): void {
   write({ t: ts(), ev: "delegate", exit: exitCode, sumLen: summaryLen });
 }
 
+export function logProposalCreated(
+  proposalId: string,
+  sessionId: string,
+  changedFiles: number,
+  expiresAt: number
+): void {
+  write({
+    t: ts(),
+    ev: "proposal",
+    action: "created",
+    id: proposalId,
+    session: sessionId,
+    files: changedFiles,
+    exp: Math.floor(expiresAt / 1000),
+  });
+}
+
+export function logProposalAccepted(proposalId: string): void {
+  write({ t: ts(), ev: "proposal", action: "accepted", id: proposalId });
+}
+
+export function logProposalRejected(proposalId: string): void {
+  write({ t: ts(), ev: "proposal", action: "rejected", id: proposalId });
+}
+
+export function logProposalExpired(proposalId: string): void {
+  write({ t: ts(), ev: "proposal", action: "expired", id: proposalId });
+}
+
+export function logProposalApplyFailed(proposalId: string, reason: string): void {
+  write({ t: ts(), ev: "proposal", action: "apply-failed", id: proposalId, reason: trunc(reason, MAX_MSG) });
+}
+
 export function logSessionSummary(topics: string[]): void {
   if (topics.length === 0) return;
   write({ t: ts(), ev: "summary", topics });
