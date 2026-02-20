@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { PendingProposal } from "./proposals.js";
 import type { ProposalFileDiff } from "./types.js";
+import { getRuntimeConfig } from "../runtimeConfig.js";
 
 export interface GitRunResult {
   code: number;
@@ -49,9 +50,12 @@ function runGitOrThrow(
   return result;
 }
 
-function previewFromDiff(diff: string, maxLines = 80, maxChars = 3000): string {
-  const limitedLines = diff.split("\n").slice(0, maxLines).join("\n");
-  return limitedLines.length > maxChars ? limitedLines.slice(0, maxChars) : limitedLines;
+function previewFromDiff(diff: string, maxLines?: number, maxChars?: number): string {
+  const runtimeConfig = getRuntimeConfig();
+  const effectiveMaxLines = maxLines ?? runtimeConfig.delegateDiffPreviewMaxLines;
+  const effectiveMaxChars = maxChars ?? runtimeConfig.delegateDiffPreviewMaxChars;
+  const limited = diff.split("\n").slice(0, effectiveMaxLines).join("\n");
+  return limited.length > effectiveMaxChars ? limited.slice(0, effectiveMaxChars) : limited;
 }
 
 function inferLanguage(filePath: string): string {
@@ -112,9 +116,10 @@ export interface ValidationResult {
 export async function runDelegationInIsolatedWorktree(
   input: WorktreeDelegationInput
 ): Promise<WorktreeDelegationResult> {
+  const runtimeConfig = getRuntimeConfig();
   const runGit = input.runGit ?? defaultGitRunner;
   const now = input.now ?? (() => Date.now());
-  const ttlMs = input.ttlMs ?? 15 * 60 * 1000;
+  const ttlMs = input.ttlMs ?? runtimeConfig.delegateProposalTtlMs;
   const createTempDir = input.createTempDir ?? defaultCreateTempDir;
   const writeTextFile = input.writeTextFile ?? defaultWriteTextFile;
   const removePath = input.removePath ?? defaultRemovePath;

@@ -6,6 +6,7 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import type { DelegateResult } from "./delegation/types.js";
 import { formatDelegateCompletionMessages } from "./delegation/messages.js";
+import { getRuntimeConfig } from "./runtimeConfig.js";
 
 export type SendFn = (text: string) => Promise<void>;
 
@@ -16,8 +17,6 @@ export interface QueuedJob {
   send: SendFn;
   history: ChatCompletionMessageParam[];
 }
-
-const MAX_CONCURRENT_JOBS = 10;
 
 /**
  * In-process async job queue for delegation tasks
@@ -41,7 +40,8 @@ export class JobQueue {
     job: QueuedJob,
     delegateFn: (prompt: string) => Promise<DelegateResult>
   ): boolean {
-    if (this.activeCount >= MAX_CONCURRENT_JOBS) {
+    const maxConcurrentJobs = getRuntimeConfig().queueMaxConcurrentJobs;
+    if (this.activeCount >= maxConcurrentJobs) {
       return false;
     }
 

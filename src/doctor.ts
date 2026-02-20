@@ -4,6 +4,7 @@ import {
   parseBoolFlag,
   parseTransportsDetailed,
 } from "./config.js";
+import { validateRuntimeConfigEnv } from "./runtimeConfig.js";
 
 function printOk(message: string): void {
   console.log(`OK   ${message}`);
@@ -101,6 +102,16 @@ function main(): void {
     } else {
       printOk(`CLANKER_TRANSPORTS enabled: ${enabled.join(", ")}.`);
     }
+  }
+
+  const runtimeConfigErrors = validateRuntimeConfigEnv();
+  if (runtimeConfigErrors.length > 0) {
+    for (const error of runtimeConfigErrors) {
+      printFail(error);
+    }
+    hasFailure = true;
+  } else {
+    printOk("Runtime configuration overrides are valid.");
   }
 
   if (hasFailure) {

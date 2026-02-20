@@ -2,9 +2,7 @@ import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import { z } from "zod";
 import type { LLMResponse } from "./types.js";
-
-const MODEL = "gpt-4o";
-const MAX_TOKENS = 1024;
+import { getRuntimeConfig } from "./runtimeConfig.js";
 
 /**
  * Validates OpenAI API key format
@@ -78,9 +76,10 @@ export async function callLLM(
   messages: ChatCompletionMessageParam[]
 ): Promise<LLMResponse> {
   const client = getClient();
+  const runtimeConfig = getRuntimeConfig();
   const response = await client.chat.completions.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
+    model: runtimeConfig.openAiModel,
+    max_tokens: runtimeConfig.openAiMaxTokens,
     response_format: { type: "json_object" },
     messages,
   });

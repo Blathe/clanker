@@ -15,6 +15,7 @@ import { JobQueue } from "./queue.js";
 import { envFlagEnabled, parseTransportsDetailed } from "./config.js";
 import { evaluate } from "./policy.js";
 import type { DelegateResult } from "./delegation/types.js";
+import { buildDelegationPrompt } from "./delegation/promptBuilder.js";
 import { ProposalStore } from "./delegation/proposals.js";
 import {
   runDelegationInIsolatedWorktree,
@@ -23,6 +24,7 @@ import {
   cleanupProposalArtifacts,
 } from "./delegation/worktree.js";
 import { handleDelegationControlCommand } from "./delegation/approval.js";
+import { getRuntimeConfig } from "./runtimeConfig.js";
 import {
   initLogger,
   logUserInput,
@@ -113,14 +115,15 @@ async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<D
     throw new Error(apiKeyValidation.error!);
   }
 
-  const delegateModel = process.env.CLANKER_CLAUDE_ACTIVE_MODEL || "claude-sonnet-4-6";
+  const delegateModel = process.env.CLANKER_CLAUDE_ACTIVE_MODEL || RUNTIME_CONFIG.defaultClaudeModel;
+  const delegatedTaskPrompt = buildDelegationPrompt(delegatePrompt);
 
   try {
     let fullResponse = "";
     let resultMessage: { type: string; exitCode?: number; summary?: string } = { type: "unknown" };
 
     const q = query({
-      prompt: delegatePrompt,
+      prompt: delegatedTaskPrompt,
       options: {
         model: delegateModel,
         ...(cwd ? { cwd } : {}),
@@ -213,6 +216,7 @@ async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<D
 const DISCORD_UNSAFE_ENABLE_WRITES = envFlagEnabled("DISCORD_UNSAFE_ENABLE_WRITES");
 const ENABLE_CLAUDE_DELEGATE = envFlagEnabled("ENABLE_CLAUDE_DELEGATE");
 const TRANSPORTS = parseTransportsDetailed("CLANKER_TRANSPORTS");
+const RUNTIME_CONFIG = getRuntimeConfig();
 const REPL_INTERACTIVE_AVAILABLE = TRANSPORTS.repl && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 const runtimeLabel =
   process.platform === "win32"
@@ -226,10 +230,6 @@ interface SessionState {
   history: ChatCompletionMessageParam[];
   busy: boolean;
 }
-
-const MAX_HISTORY = 50;
-const MAX_SESSIONS = 100;
-const MAX_USER_INPUT = 8000; // characters
 
 /**
  * Validates Anthropic API key format
@@ -254,14 +254,15 @@ export function validateAnthropicKey(key: string | undefined): { valid: boolean;
  * Validates user input length to prevent DoS and memory exhaustion
  */
 export function validateInputLength(input: string): { valid: boolean; error: string | null } {
+  const maxUserInput = RUNTIME_CONFIG.maxUserInput;
   if (!input) {
     return { valid: false, error: "Input cannot be empty" };
   }
 
-  if (input.length > MAX_USER_INPUT) {
+  if (input.length > maxUserInput) {
     return {
       valid: false,
-      error: `Input too long (${input.length} characters, max ${MAX_USER_INPUT}). Please keep your message shorter.`,
+      error: `Input too long (${input.length} characters, max ${maxUserInput}). Please keep your message shorter.`,
     };
   }
 
@@ -273,13 +274,13 @@ export function validateInputLength(input: string): { valid: boolean; error: str
  * Keeps the system prompt (always at index 0) and the most recent MAX_HISTORY messages.
  */
 function trimSessionHistory(history: ChatCompletionMessageParam[]): void {
-  if (history.length <= MAX_HISTORY + 1) {
+  if (history.length <= RUNTIME_CONFIG.maxHistory + 1) {
     return; // +1 for system prompt at index 0
   }
 
   // Keep system prompt and the most recent MAX_HISTORY messages
   const systemPrompt = history[0];
-  const recentMessages = history.slice(-(MAX_HISTORY));
+  const recentMessages = history.slice(-(RUNTIME_CONFIG.maxHistory));
   history.splice(0, history.length, systemPrompt, ...recentMessages);
 }
 
@@ -307,7 +308,7 @@ class SessionManager {
   }
 
   isAtLimit(): boolean {
-    return this.sessions.size >= MAX_SESSIONS;
+    return this.sessions.size >= RUNTIME_CONFIG.maxSessions;
   }
 
   getCount(): number {

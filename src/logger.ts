@@ -3,19 +3,25 @@ import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
 import type { LLMResponse, PolicyVerdict, ExecutionResult } from "./types.js";
 import type { EditResult } from "./executor.js";
+import { getRuntimeConfig } from "./runtimeConfig.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SESSIONS_DIR = join(__dirname, "..", "sessions");
-
-const MAX_OUT = 500;
-const MAX_CMD = 200;
-const MAX_MSG = 300;
 
 let sessionFile: string | null = null;
 let pendingVersion: string | null = null;
 
 function trunc(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + "\u2026" : s;
+}
+
+function getLimits(): { maxOut: number; maxCmd: number; maxMsg: number } {
+  const runtimeConfig = getRuntimeConfig();
+  return {
+    maxOut: runtimeConfig.loggerMaxOut,
+    maxCmd: runtimeConfig.loggerMaxCmd,
+    maxMsg: runtimeConfig.loggerMaxMsg,
+  };
 }
 
 /**
@@ -81,34 +87,41 @@ export function initLogger(version = "0.1.0"): void {
 }
 
 export function logUserInput(input: string): void {
-  write({ t: ts(), ev: "user", msg: trunc(input, MAX_MSG) });
+  const limits = getLimits();
+  write({ t: ts(), ev: "user", msg: trunc(input, limits.maxMsg) });
 }
 
 export function logLLMResponse(response: LLMResponse): void {
+  const limits = getLimits();
   const base = { t: ts(), ev: "llm", type: response.type };
   switch (response.type) {
     case "command":
       write({
         ...base,
-        cmd: trunc(response.command, MAX_CMD),
-        msg: trunc(response.explanation, MAX_MSG),
+        cmd: trunc(response.command, limits.maxCmd),
+        msg: trunc(response.explanation, limits.maxMsg),
         ...(response.working_dir ? { cwd: response.working_dir } : {}),
       });
       break;
     case "edit":
-      write({ ...base, file: response.file, msg: trunc(response.explanation, MAX_MSG) });
+      write({ ...base, file: response.file, msg: trunc(response.explanation, limits.maxMsg) });
       break;
     case "delegate":
-      write({ ...base, prompt: trunc(response.prompt, MAX_MSG), msg: trunc(response.explanation, MAX_MSG) });
+      write({
+        ...base,
+        prompt: trunc(response.prompt, limits.maxMsg),
+        msg: trunc(response.explanation, limits.maxMsg),
+      });
       break;
     case "message":
-      write({ ...base, msg: trunc(response.explanation, MAX_MSG) });
+      write({ ...base, msg: trunc(response.explanation, limits.maxMsg) });
       break;
   }
 }
 
 export function logVerdict(command: string, verdict: PolicyVerdict): void {
-  const base = { t: ts(), ev: "policy", cmd: trunc(command, MAX_CMD), dec: verdict.decision };
+  const limits = getLimits();
+  const base = { t: ts(), ev: "policy", cmd: trunc(command, limits.maxCmd), dec: verdict.decision };
   switch (verdict.decision) {
     case "allowed":
       write({ ...base, ...(verdict.rule_id ? { rule: verdict.rule_id } : {}) });
@@ -127,18 +140,20 @@ export function logSecretVerification(ruleId: string, granted: boolean): void {
 }
 
 export function logCommandResult(command: string, result: ExecutionResult): void {
+  const limits = getLimits();
   write({
     t: ts(), ev: "cmd",
-    cmd: trunc(command, MAX_CMD),
+    cmd: trunc(command, limits.maxCmd),
     exit: result.exit_code,
-    out: trunc(filterSensitiveData(result.stdout), MAX_OUT),
-    err: trunc(filterSensitiveData(result.stderr), MAX_OUT),
+    out: trunc(filterSensitiveData(result.stdout), limits.maxOut),
+    err: trunc(filterSensitiveData(result.stderr), limits.maxOut),
   });
 }
 
 export function logEdit(file: string, result: EditResult): void {
+  const limits = getLimits();
   const entry: Record<string, unknown> = { t: ts(), ev: "edit", file, success: result.success };
-  if (!result.success && result.error) entry.error = trunc(result.error, MAX_MSG);
+  if (!result.success && result.error) entry.error = trunc(result.error, limits.maxMsg);
   write(entry);
 }
 
@@ -176,7 +191,14 @@ export function logProposalExpired(proposalId: string): void {
 }
 
 export function logProposalApplyFailed(proposalId: string, reason: string): void {
-  write({ t: ts(), ev: "proposal", action: "apply-failed", id: proposalId, reason: trunc(reason, MAX_MSG) });
+  const limits = getLimits();
+  write({
+    t: ts(),
+    ev: "proposal",
+    action: "apply-failed",
+    id: proposalId,
+    reason: trunc(reason, limits.maxMsg),
+  });
 }
 
 export function logSessionSummary(topics: string[]): void {

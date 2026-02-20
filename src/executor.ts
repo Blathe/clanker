@@ -2,27 +2,27 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, lstatSync } from "node:fs";
 import { normalize, resolve, relative } from "node:path";
 import type { ExecuteCommandInput, ExecutionResult } from "./types.js";
+import { getRuntimeConfig } from "./runtimeConfig.js";
 
 export interface EditResult {
   success: boolean;
   error?: string;
 }
 
-const MAX_COMMAND_LENGTH = 10000; // characters
-
 /**
  * Validates command length to prevent performance issues during policy evaluation
  * and regex DoS attacks
  */
 export function validateCommandLength(command: string): { valid: boolean; error: string | null } {
+  const maxCommandLength = getRuntimeConfig().maxCommandLength;
   if (!command) {
     return { valid: false, error: "Command cannot be empty" };
   }
 
-  if (command.length > MAX_COMMAND_LENGTH) {
+  if (command.length > maxCommandLength) {
     return {
       valid: false,
-      error: `Command too long (${command.length} characters, max ${MAX_COMMAND_LENGTH}). Commands must be concise.`,
+      error: `Command too long (${command.length} characters, max ${maxCommandLength}). Commands must be concise.`,
     };
   }
 
@@ -115,17 +115,15 @@ export function applyEdit(file: string, oldText: string, newText: string): EditR
 
 const GIT_BASH = "C:/Program Files/Git/bin/bash.exe";
 
-// Max output per command (512 KB hard limit)
-const MAX_OUTPUT_PER_COMMAND = 512 * 1024;
-
 /**
  * Cap command output to prevent memory exhaustion
  * Truncates and logs warning if output exceeds limit
  */
 function capOutput(output: string, label: string): string {
-  if (output.length > MAX_OUTPUT_PER_COMMAND) {
-    console.warn(`Output ${label} exceeded ${MAX_OUTPUT_PER_COMMAND} bytes, truncating`);
-    return output.slice(0, MAX_OUTPUT_PER_COMMAND) + "\n[OUTPUT TRUNCATED]";
+  const maxOutputPerCommand = getRuntimeConfig().maxOutputBytes;
+  if (output.length > maxOutputPerCommand) {
+    console.warn(`Output ${label} exceeded ${maxOutputPerCommand} bytes, truncating`);
+    return output.slice(0, maxOutputPerCommand) + "\n[OUTPUT TRUNCATED]";
   }
   return output;
 }
@@ -143,6 +141,7 @@ function buildShellArgs(command: string): { shell: string; args: string[] } {
 }
 
 export function runCommand(input: ExecuteCommandInput): ExecutionResult {
+  const maxOutputPerCommand = getRuntimeConfig().maxOutputBytes;
   const { shell, args } = buildShellArgs(input.command);
 
   // Validate working_dir to prevent path traversal attacks
@@ -164,7 +163,7 @@ export function runCommand(input: ExecuteCommandInput): ExecutionResult {
     cwd,
     encoding: "utf8",
     timeout: 10_000,
-    maxBuffer: 512 * 1024,
+    maxBuffer: maxOutputPerCommand,
   });
 
   const exit_code = result.status ?? 1;
