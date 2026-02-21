@@ -46,6 +46,10 @@ export function loadPromptTemplates(): PromptTemplates {
   return cachedTemplates;
 }
 
+export function resetTemplateCache(): void {
+  cachedTemplates = null;
+}
+
 export function renderPromptTemplate(
   template: string,
   variables: Record<string, string>

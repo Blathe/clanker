@@ -14,6 +14,7 @@ import { handleTurnAction, type QueueDelegateResult } from "./turnHandlers.js";
 import { JobQueue } from "./queue.js";
 import { envFlagEnabled, parseTransportsDetailed } from "./config.js";
 import { evaluate } from "./policy.js";
+import { validateWorkingDir } from "./executor.js";
 import type { DelegateResult } from "./delegation/types.js";
 import { buildDelegationPrompt } from "./delegation/promptBuilder.js";
 import { ProposalStore } from "./delegation/proposals.js";
@@ -25,6 +26,7 @@ import {
 } from "./delegation/worktree.js";
 import { handleDelegationControlCommand } from "./delegation/approval.js";
 import { getRuntimeConfig } from "./runtimeConfig.js";
+import { SessionManager } from "./session.js";
 import {
   initLogger,
   logUserInput,
@@ -105,6 +107,13 @@ function promptSecret(question: string): Promise<string> {
   });
 }
 
+const BASH_TOOL_NAMES = new Set(["bash", "bash_execute_command"]);
+const ALLOWED_FILE_TOOLS = new Set([
+  "str_replace_based_edit_tool", "str_replace_based_edit",
+  "create_file", "read_file", "write_file",
+  "view_file", "list_directory", "glob", "grep",
+]);
+
 async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<DelegateResult> {
   if (!ENABLE_CLAUDE_DELEGATE) {
     throw new Error("Claude delegation is disabled. Set ENABLE_CLAUDE_DELEGATE=1 to enable it.");
@@ -131,30 +140,36 @@ async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<D
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         canUseTool: async (toolName, toolInput) => {
-          // For bash_execute_command tool, evaluate the actual command string
-          let commandToEvaluate = toolName;
-          if (toolName === "bash_execute_command" && toolInput && typeof toolInput === "object") {
-            const input = toolInput as { command?: string };
-            if (input.command) {
-              commandToEvaluate = input.command;
+          if (BASH_TOOL_NAMES.has(toolName)) {
+            // For bash tools, evaluate the actual command string against policy
+            let commandToEvaluate = toolName;
+            if (toolInput && typeof toolInput === "object") {
+              const input = toolInput as { command?: string };
+              if (input.command) {
+                commandToEvaluate = input.command;
+              }
             }
-          }
 
-          const verdict = evaluate(commandToEvaluate);
-          console.log(`[Delegation] Tool use requested: ${toolName}`, {
-            decision: verdict.decision,
-            evaluated: commandToEvaluate.slice(0, 80),
-          });
+            const verdict = evaluate(commandToEvaluate);
+            console.log(`[Delegation] Tool use requested: ${toolName}`, {
+              decision: verdict.decision,
+              evaluated: commandToEvaluate.slice(0, 80),
+            });
 
-          if (verdict.decision === "allowed") {
+            if (verdict.decision === "allowed") {
+              return { behavior: "allow" };
+            } else {
+              const reason = "reason" in verdict ? verdict.reason : "denied by policy";
+              console.log(`[Delegation] Tool blocked: ${toolName} - ${reason}`);
+              return {
+                behavior: "deny",
+                message: `Command blocked by policy: ${reason}`,
+              };
+            }
+          } else if (ALLOWED_FILE_TOOLS.has(toolName)) {
             return { behavior: "allow" };
           } else {
-            const reason = "reason" in verdict ? verdict.reason : "denied by policy";
-            console.log(`[Delegation] Tool blocked: ${toolName} - ${reason}`);
-            return {
-              behavior: "deny",
-              message: `Command blocked by policy: ${reason}`,
-            };
+            return { behavior: "deny", message: `Tool not permitted in delegation context: ${toolName}` };
           }
         },
       },
@@ -188,13 +203,13 @@ async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<D
           resultMessage = {
             type: "success",
             exitCode: 0,
-            summary: (result.result || fullResponse).slice(-800).trim(),
+            summary: (result.result || fullResponse).slice(0, 800).trim(),
           };
         } else {
           resultMessage = {
             type: "error",
             exitCode: 1,
-            summary: (result.errors ? result.errors.join("\n") : "Unknown error").slice(-800).trim(),
+            summary: (result.errors ? result.errors.join("\n") : "Unknown error").slice(0, 800).trim(),
           };
         }
       } else {
@@ -204,7 +219,7 @@ async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<D
 
     return {
       exitCode: resultMessage.exitCode || 0,
-      summary: resultMessage.summary || fullResponse.slice(-800).trim(),
+      summary: resultMessage.summary || fullResponse.slice(0, 800).trim(),
     };
   } catch (err) {
     // Log full error for debugging, but throw generic error
@@ -226,11 +241,6 @@ const runtimeLabel =
       : "a Linux environment";
 const { systemPrompt: SYSTEM_PROMPT, lastSession: LAST_SESSION } = loadRuntimePromptContext(runtimeLabel);
 
-interface SessionState {
-  history: ChatCompletionMessageParam[];
-  busy: boolean;
-}
-
 /**
  * Validates Anthropic API key format
  * Anthropic keys must start with "sk-ant-"
@@ -244,25 +254,6 @@ export function validateAnthropicKey(key: string | undefined): { valid: boolean;
     return {
       valid: false,
       error: "ANTHROPIC_API_KEY must start with 'sk-ant-'. Check your API key format.",
-    };
-  }
-
-  return { valid: true, error: null };
-}
-
-/**
- * Validates user input length to prevent DoS and memory exhaustion
- */
-export function validateInputLength(input: string): { valid: boolean; error: string | null } {
-  const maxUserInput = RUNTIME_CONFIG.maxUserInput;
-  if (!input) {
-    return { valid: false, error: "Input cannot be empty" };
-  }
-
-  if (input.length > maxUserInput) {
-    return {
-      valid: false,
-      error: `Input too long (${input.length} characters, max ${maxUserInput}). Please keep your message shorter.`,
     };
   }
 
@@ -284,43 +275,7 @@ function trimSessionHistory(history: ChatCompletionMessageParam[]): void {
   history.splice(0, history.length, systemPrompt, ...recentMessages);
 }
 
-/**
- * Manages sessions with a maximum concurrent limit.
- * Prevents memory exhaustion from unlimited session creation.
- */
-class SessionManager {
-  private sessions: Map<string, SessionState> = new Map();
-
-  getSession(sessionId: string): SessionState {
-    const existing = this.sessions.get(sessionId);
-    if (existing) return existing;
-
-    const created: SessionState = {
-      history: [{ role: "system", content: SYSTEM_PROMPT }],
-      busy: false,
-    };
-    this.sessions.set(sessionId, created);
-    return created;
-  }
-
-  hasSession(sessionId: string): boolean {
-    return this.sessions.has(sessionId);
-  }
-
-  isAtLimit(): boolean {
-    return this.sessions.size >= RUNTIME_CONFIG.maxSessions;
-  }
-
-  getCount(): number {
-    return this.sessions.size;
-  }
-
-  clear(sessionId: string): void {
-    this.sessions.delete(sessionId);
-  }
-}
-
-const sessionManager = new SessionManager();
+const sessionManager = new SessionManager({ maxSessions: RUNTIME_CONFIG.maxSessions, systemPrompt: SYSTEM_PROMPT });
 const jobQueue = new JobQueue();
 const proposalStore = new ProposalStore();
 const sessionTopics: string[] = [];
@@ -352,6 +307,11 @@ async function delegateToClaudeWithReview(
   delegatePrompt: string,
   workingDir?: string
 ): Promise<DelegateResult> {
+  if (workingDir) {
+    const wdValidation = validateWorkingDir(workingDir);
+    if (!wdValidation.valid) throw new Error(wdValidation.error);
+  }
+
   const result = await runDelegationInIsolatedWorktree({
     sessionId,
     prompt: delegatePrompt,
@@ -441,7 +401,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
 
     let safetyCounter = 0;
     let broke = false;
-    while (safetyCounter < 8) {
+    while (safetyCounter < RUNTIME_CONFIG.maxActionsPerTurn) {
       safetyCounter += 1;
 
       let response;
@@ -452,6 +412,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         console.error(`[${channel}:${sessionId}] LLM error:`, err);
         await send("An error occurred while processing your request. Please try again.");
         state.history.pop();
+        trimSessionHistory(state.history);
         return;
       }
 
@@ -472,7 +433,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         }
 
         const queued = jobQueue.enqueue(
-          { id: randomUUID(), sessionId, prompt, send: sendFn, history },
+          { id: randomUUID(), sessionId, prompt, send: sendFn, history, trimHistory: () => trimSessionHistory(state.history) },
           (delegatePrompt: string) => delegateToClaudeWithReview(sessionId, delegatePrompt, workingDir)
         );
         return queued ? { status: "queued" } : { status: "full" };
@@ -522,7 +483,6 @@ function printStartupBanner(): void {
     ...(TRANSPORTS.discord ? ["discord"] : []),
   ];
   console.log(`Enabled transports: ${enabledTransports.join(", ")}`);
-  console.log("Default passphrase for write operations: mypassphrase");
   if (!ENABLE_CLAUDE_DELEGATE) {
     console.log("Claude delegation is disabled (ENABLE_CLAUDE_DELEGATE is not set).");
   }

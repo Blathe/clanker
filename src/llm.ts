@@ -84,9 +84,15 @@ export async function callLLM(
     messages,
   });
 
+  if (!response.choices?.length) {
+    throw new Error("LLM returned no choices (possible rate limit or empty response)");
+  }
   const content = response.choices[0].message.content ?? "{}";
-  const parsed = JSON.parse(content);
-
-  // Validate against schema to ensure response has correct structure
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error(`LLM returned non-JSON response: ${content.slice(0, 100)}`);
+  }
   return LLMResponseSchema.parse(parsed);
 }

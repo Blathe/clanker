@@ -3,3 +3,4 @@ node_modules/
 sessions/
 .claude/
 SECURITY.md
+.test-tmp-*/

@@ -88,7 +88,7 @@ export function initLogger(version = "0.1.0"): void {
 
 export function logUserInput(input: string): void {
   const limits = getLimits();
-  write({ t: ts(), ev: "user", msg: trunc(input, limits.maxMsg) });
+  write({ t: ts(), ev: "user", msg: trunc(filterSensitiveData(input), limits.maxMsg) });
 }
 
 export function logLLMResponse(response: LLMResponse): void {

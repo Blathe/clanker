@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { ProcessTurn, SendFn } from "../runtime.js";
 import { getEnv, parseCsvEnvSet } from "../config.js";
-import { validateInputLength } from "../main.js";
+import { validateInputLength } from "../validators.js";
+import { getRuntimeConfig } from "../runtimeConfig.js";
 
 type DiscordModule = typeof import("discord.js");
 type DiscordMessage = import("discord.js").Message<boolean>;
@@ -123,7 +124,7 @@ export async function runDiscordTransport(processTurn: ProcessTurn): Promise<boo
     if (!content) return;
 
     // Validate input length
-    const validation = validateInputLength(content);
+    const validation = validateInputLength(content, getRuntimeConfig().maxUserInput);
     if (!validation.valid) {
       await message.reply(`Error: ${validation.error}`);
       return;

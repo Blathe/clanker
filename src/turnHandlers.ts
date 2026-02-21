@@ -198,8 +198,10 @@ async function handleCommandAction(ctx: TurnActionContext): Promise<TurnActionOu
         working_dir: ctx.response.working_dir,
       });
       logCommandResult(ctx.response.command, result);
-      await ctx.send(formatResult(result, ctx.response.explanation));
-      return "break";
+      const formatted = formatResult(result, ctx.response.explanation);
+      await ctx.send(formatted);
+      pushUserHistory(ctx.history, `Command output for: ${ctx.response.command}\n${formatted}`);
+      return "continue";
     }
 
     case "allowed": {

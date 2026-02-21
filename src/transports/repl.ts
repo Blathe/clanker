@@ -1,6 +1,7 @@
 import type { Interface } from "node:readline";
 import type { ProcessTurn, SendFn } from "../runtime.js";
-import { validateInputLength } from "../main.js";
+import { validateInputLength } from "../validators.js";
+import { getRuntimeConfig } from "../runtimeConfig.js";
 
 const REPL_SESSION_ID = "repl:local";
 
@@ -63,7 +64,7 @@ export async function runReplTransport(deps: ReplTransportDeps): Promise<void> {
     if (!userInput.trim()) continue;
 
     // Validate input length
-    const validation = validateInputLength(userInput);
+    const validation = validateInputLength(userInput, getRuntimeConfig().maxUserInput);
     if (!validation.valid) {
       console.log(`\nError: ${validation.error}\n`);
       continue;

@@ -65,7 +65,7 @@ function validateFilePath(file: string): { valid: boolean; error?: string } {
  * Validates that a working directory is safe for command execution.
  * Prevents path traversal attacks via working_dir parameter.
  */
-function validateWorkingDir(dir: string): { valid: boolean; resolved?: string; error?: string } {
+export function validateWorkingDir(dir: string): { valid: boolean; resolved?: string; error?: string } {
   if (!dir || typeof dir !== "string") {
     return { valid: false, error: "Working directory must be a non-empty string" };
   }
@@ -98,9 +98,9 @@ export function applyEdit(file: string, oldText: string, newText: string): EditR
     return { success: false, error: `Could not read file: ${file}` };
   }
 
-  if (!contents.includes(oldText)) {
-    return { success: false, error: `Text not found in file — no changes made.\nSearched for:\n${oldText}` };
-  }
+  const occurrences = contents.split(oldText).length - 1;
+  if (occurrences === 0) return { success: false, error: "Text not found in file — no changes made." };
+  if (occurrences > 1) return { success: false, error: `Text appears ${occurrences} times; it must be unique to safely apply the edit.` };
 
   const updated = contents.replace(oldText, newText);
   try {

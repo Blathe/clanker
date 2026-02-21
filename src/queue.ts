@@ -5,10 +5,9 @@
 
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import type { DelegateResult } from "./delegation/types.js";
+import type { SendFn } from "./runtime.js";
 import { formatDelegateCompletionMessages } from "./delegation/messages.js";
 import { getRuntimeConfig } from "./runtimeConfig.js";
-
-export type SendFn = (text: string) => Promise<void>;
 
 export interface QueuedJob {
   id: string;
@@ -16,6 +15,7 @@ export interface QueuedJob {
   prompt: string;
   send: SendFn;
   history: ChatCompletionMessageParam[];
+  trimHistory?: () => void;
 }
 
 /**
@@ -69,6 +69,7 @@ export class JobQueue {
         role: "user",
         content: `[Background task completed] ${completionMessages.join("\n\n")}`,
       });
+      job.trimHistory?.();
       try {
         for (const msg of completionMessages) {
           await job.send(msg);

@@ -10,6 +10,7 @@ describe("runtimeConfig", () => {
     expect(cfg.maxUserInput).toBe(8000);
     expect(cfg.maxCommandLength).toBe(10000);
     expect(cfg.maxOutputBytes).toBe(512 * 1024);
+    expect(cfg.maxActionsPerTurn).toBe(8);
     expect(cfg.queueMaxConcurrentJobs).toBe(10);
     expect(cfg.delegateProposalTtlMs).toBe(15 * 60 * 1000);
     expect(cfg.delegateDiffPreviewMaxLines).toBe(80);

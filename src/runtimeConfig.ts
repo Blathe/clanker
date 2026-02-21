@@ -8,6 +8,7 @@ export interface RuntimeConfig {
   maxUserInput: number;
   maxCommandLength: number;
   maxOutputBytes: number;
+  maxActionsPerTurn: number;
   queueMaxConcurrentJobs: number;
   delegateProposalTtlMs: number;
   delegateDiffPreviewMaxLines: number;
@@ -33,6 +34,7 @@ const NUMERIC_OVERRIDES: NumericOverride[] = [
   { name: "CLANKER_MAX_USER_INPUT", defaultValue: 8000, min: 1 },
   { name: "CLANKER_MAX_COMMAND_LENGTH", defaultValue: 10000, min: 1 },
   { name: "CLANKER_MAX_OUTPUT_BYTES", defaultValue: 512 * 1024, min: 1 },
+  { name: "CLANKER_MAX_ACTIONS_PER_TURN", defaultValue: 8, min: 1 },
   { name: "CLANKER_QUEUE_MAX_CONCURRENT_JOBS", defaultValue: 10, min: 1 },
   { name: "CLANKER_DELEGATE_PROPOSAL_TTL_MS", defaultValue: 15 * 60 * 1000, min: 1 },
   { name: "CLANKER_DELEGATE_DIFF_PREVIEW_MAX_LINES", defaultValue: 80, min: 1 },
@@ -90,6 +92,14 @@ export function validateRuntimeConfigEnv(
   return errors;
 }
 
+function getRequired(map: Map<string, number>, key: string): number {
+  const value = map.get(key);
+  if (value === undefined) {
+    throw new Error(`Required runtime config key missing: ${key}`);
+  }
+  return value;
+}
+
 export function buildRuntimeConfig(
   env: EnvMap = process.env as EnvMap
 ): RuntimeConfig {
@@ -107,21 +117,22 @@ export function buildRuntimeConfig(
 
   return {
     openAiModel: model,
-    openAiMaxTokens: values.get("CLANKER_OPENAI_MAX_TOKENS")!,
-    maxHistory: values.get("CLANKER_MAX_HISTORY")!,
-    maxSessions: values.get("CLANKER_MAX_SESSIONS")!,
-    maxUserInput: values.get("CLANKER_MAX_USER_INPUT")!,
-    maxCommandLength: values.get("CLANKER_MAX_COMMAND_LENGTH")!,
-    maxOutputBytes: values.get("CLANKER_MAX_OUTPUT_BYTES")!,
-    queueMaxConcurrentJobs: values.get("CLANKER_QUEUE_MAX_CONCURRENT_JOBS")!,
-    delegateProposalTtlMs: values.get("CLANKER_DELEGATE_PROPOSAL_TTL_MS")!,
-    delegateDiffPreviewMaxLines: values.get("CLANKER_DELEGATE_DIFF_PREVIEW_MAX_LINES")!,
-    delegateDiffPreviewMaxChars: values.get("CLANKER_DELEGATE_DIFF_PREVIEW_MAX_CHARS")!,
-    delegateFileDiffMaxLines: values.get("CLANKER_DELEGATE_FILE_DIFF_MAX_LINES")!,
-    delegateFileDiffMaxChars: values.get("CLANKER_DELEGATE_FILE_DIFF_MAX_CHARS")!,
-    loggerMaxOut: values.get("CLANKER_LOGGER_MAX_OUT")!,
-    loggerMaxCmd: values.get("CLANKER_LOGGER_MAX_CMD")!,
-    loggerMaxMsg: values.get("CLANKER_LOGGER_MAX_MSG")!,
+    openAiMaxTokens: getRequired(values, "CLANKER_OPENAI_MAX_TOKENS"),
+    maxHistory: getRequired(values, "CLANKER_MAX_HISTORY"),
+    maxSessions: getRequired(values, "CLANKER_MAX_SESSIONS"),
+    maxUserInput: getRequired(values, "CLANKER_MAX_USER_INPUT"),
+    maxCommandLength: getRequired(values, "CLANKER_MAX_COMMAND_LENGTH"),
+    maxOutputBytes: getRequired(values, "CLANKER_MAX_OUTPUT_BYTES"),
+    maxActionsPerTurn: getRequired(values, "CLANKER_MAX_ACTIONS_PER_TURN"),
+    queueMaxConcurrentJobs: getRequired(values, "CLANKER_QUEUE_MAX_CONCURRENT_JOBS"),
+    delegateProposalTtlMs: getRequired(values, "CLANKER_DELEGATE_PROPOSAL_TTL_MS"),
+    delegateDiffPreviewMaxLines: getRequired(values, "CLANKER_DELEGATE_DIFF_PREVIEW_MAX_LINES"),
+    delegateDiffPreviewMaxChars: getRequired(values, "CLANKER_DELEGATE_DIFF_PREVIEW_MAX_CHARS"),
+    delegateFileDiffMaxLines: getRequired(values, "CLANKER_DELEGATE_FILE_DIFF_MAX_LINES"),
+    delegateFileDiffMaxChars: getRequired(values, "CLANKER_DELEGATE_FILE_DIFF_MAX_CHARS"),
+    loggerMaxOut: getRequired(values, "CLANKER_LOGGER_MAX_OUT"),
+    loggerMaxCmd: getRequired(values, "CLANKER_LOGGER_MAX_CMD"),
+    loggerMaxMsg: getRequired(values, "CLANKER_LOGGER_MAX_MSG"),
     defaultClaudeModel: "claude-sonnet-4-6",
   };
 }

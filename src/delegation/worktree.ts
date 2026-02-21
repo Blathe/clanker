@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
-import { join, dirname, basename } from "node:path";
+import { join, dirname, basename, resolve, normalize, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { PendingProposal } from "./proposals.js";
@@ -282,6 +282,12 @@ export function applyProposalPatch(
   proposal: PendingProposal,
   runGit: GitRunner = defaultGitRunner
 ): ValidationResult {
+  const expectedDir = resolve(tmpdir()) + sep;
+  const resolvedPatch = resolve(normalize(proposal.patchPath));
+  if (!resolvedPatch.startsWith(expectedDir)) {
+    return { ok: false, error: "Proposal patch path is outside expected temp directory." };
+  }
+
   const apply = runGit(["apply", "--whitespace=nowarn", proposal.patchPath], proposal.repoRoot);
   if (apply.code !== 0) {
     const detail = apply.stderr.trim() || apply.stdout.trim() || "git apply failed";

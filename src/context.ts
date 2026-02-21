@@ -1,12 +1,9 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import {
   composeSystemPromptFromTemplates,
   loadPromptTemplates,
 } from "./prompt/loadPrompts.js";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Validates that a filename matches the expected session file format
@@ -32,7 +29,7 @@ function extractSessionTimestamp(filename: string): string | null {
 }
 
 function loadSoul(): string {
-  const soulPath = join(__dirname, "..", "config", "SOUL.md");
+  const soulPath = join(process.cwd(), "config", "SOUL.md");
   if (existsSync(soulPath)) {
     return readFileSync(soulPath, "utf8").trim() + "\n\n";
   }
@@ -40,15 +37,15 @@ function loadSoul(): string {
 }
 
 function loadMemory(): string {
-  const memoryPath = join(__dirname, "..", "MEMORY.md");
+  const memoryPath = join(process.cwd(), "MEMORY.md");
   if (existsSync(memoryPath)) {
     return "## Persistent Memory\n\n" + readFileSync(memoryPath, "utf8").trim() + "\n\n";
   }
   return "";
 }
 
-function loadLastSession(): string {
-  const sessionsDir = join(__dirname, "..", "sessions");
+export function loadLastSession(sessionsDir?: string): string {
+  if (!sessionsDir) sessionsDir = join(process.cwd(), "sessions");
   if (!existsSync(sessionsDir)) return "";
 
   let files: string[];
