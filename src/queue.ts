@@ -4,8 +4,10 @@
  */
 
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
-
-export type SendFn = (text: string) => Promise<void>;
+import type { DelegateResult } from "./delegation/types.js";
+import type { SendFn } from "./runtime.js";
+import { formatDelegateCompletionMessages } from "./delegation/messages.js";
+import { getRuntimeConfig } from "./runtimeConfig.js";
 
 export interface QueuedJob {
   id: string;
@@ -13,14 +15,8 @@ export interface QueuedJob {
   prompt: string;
   send: SendFn;
   history: ChatCompletionMessageParam[];
+  trimHistory?: () => void;
 }
-
-export interface DelegateResult {
-  exitCode: number;
-  summary: string;
-}
-
-const MAX_CONCURRENT_JOBS = 10;
 
 /**
  * In-process async job queue for delegation tasks
@@ -44,7 +40,8 @@ export class JobQueue {
     job: QueuedJob,
     delegateFn: (prompt: string) => Promise<DelegateResult>
   ): boolean {
-    if (this.activeCount >= MAX_CONCURRENT_JOBS) {
+    const maxConcurrentJobs = getRuntimeConfig().queueMaxConcurrentJobs;
+    if (this.activeCount >= maxConcurrentJobs) {
       return false;
     }
 
@@ -67,12 +64,16 @@ export class JobQueue {
       console.log(`[JobQueue] Starting delegation task ${job.id}`);
       const result = await delegateFn(job.prompt);
       console.log(`[JobQueue] Delegation task ${job.id} completed, sending notification`);
+      const completionMessages = formatDelegateCompletionMessages(result);
       job.history.push({
         role: "user",
-        content: `[Background task completed] Claude delegation result: ${result.summary}`,
+        content: `[Background task completed] ${completionMessages.join("\n\n")}`,
       });
+      job.trimHistory?.();
       try {
-        await job.send(`Claude has finished the delegated task:\n\n${result.summary}`);
+        for (const msg of completionMessages) {
+          await job.send(msg);
+        }
         console.log(`[JobQueue] Successfully sent notification for task ${job.id}`);
       } catch (err) {
         console.error(`[JobQueue] Failed to send notification for task ${job.id}: ${err}`);

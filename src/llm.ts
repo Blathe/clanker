@@ -2,9 +2,7 @@ import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import { z } from "zod";
 import type { LLMResponse } from "./types.js";
-
-const MODEL = "gpt-4o";
-const MAX_TOKENS = 1024;
+import { getRuntimeConfig } from "./runtimeConfig.js";
 
 /**
  * Validates OpenAI API key format
@@ -44,6 +42,7 @@ const EditResponseSchema = z.object({
 const DelegateResponseSchema = z.object({
   type: z.literal("delegate"),
   prompt: z.string().min(1),
+  working_dir: z.string().optional(),
   explanation: z.string(),
 });
 
@@ -77,16 +76,23 @@ export async function callLLM(
   messages: ChatCompletionMessageParam[]
 ): Promise<LLMResponse> {
   const client = getClient();
+  const runtimeConfig = getRuntimeConfig();
   const response = await client.chat.completions.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
+    model: runtimeConfig.openAiModel,
+    max_tokens: runtimeConfig.openAiMaxTokens,
     response_format: { type: "json_object" },
     messages,
   });
 
+  if (!response.choices?.length) {
+    throw new Error("LLM returned no choices (possible rate limit or empty response)");
+  }
   const content = response.choices[0].message.content ?? "{}";
-  const parsed = JSON.parse(content);
-
-  // Validate against schema to ensure response has correct structure
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error(`LLM returned non-JSON response: ${content.slice(0, 100)}`);
+  }
   return LLMResponseSchema.parse(parsed);
 }

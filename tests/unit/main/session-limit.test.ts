@@ -1,171 +1,102 @@
 /**
- * Unit tests for session limit enforcement
- * Tests that concurrent sessions are bounded to prevent memory exhaustion
+ * Unit tests for session limit enforcement using production SessionManager
  */
 
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
+import { SessionManager } from "../../../src/session.js";
 
 const MAX_SESSIONS = 100;
-
-// Mock the session state structure
-interface SessionState {
-  history: ChatCompletionMessageParam[];
-  busy: boolean;
-}
-
-/**
- * Manages sessions with a maximum concurrent limit
- */
-class SessionManager {
-  private sessions: Map<string, SessionState> = new Map();
-  private maxSessions: number;
-
-  constructor(maxSessions: number = MAX_SESSIONS) {
-    this.maxSessions = maxSessions;
-  }
-
-  /**
-   * Get or create a session
-   * Returns { session, error } where error is set if session creation is rejected
-   */
-  getSession(sessionId: string): { session: SessionState | null; error: string | null } {
-    const existing = this.sessions.get(sessionId);
-    if (existing) {
-      return { session: existing, error: null };
-    }
-
-    // Check if we've hit the session limit
-    if (this.sessions.size >= this.maxSessions) {
-      return {
-        session: null,
-        error: `Session limit reached (${this.maxSessions} concurrent sessions). Please try again later.`,
-      };
-    }
-
-    // Create new session
-    const created: SessionState = {
-      history: [{ role: "system", content: "System prompt" }],
-      busy: false,
-    };
-    this.sessions.set(sessionId, created);
-    return { session: created, error: null };
-  }
-
-  /**
-   * Get session count (for testing)
-   */
-  getSessionCount(): number {
-    return this.sessions.size;
-  }
-
-  /**
-   * Clear all sessions (for testing)
-   */
-  clear(): void {
-    this.sessions.clear();
-  }
-}
 
 describe("Session Limit Management", () => {
   let manager: SessionManager;
 
   beforeEach(() => {
-    manager = new SessionManager(MAX_SESSIONS);
+    manager = new SessionManager({ maxSessions: MAX_SESSIONS, systemPrompt: "System prompt" });
   });
 
-  describe("SessionManager.getSession", () => {
+  describe("SessionManager", () => {
     test("should create a new session when under limit", () => {
-      const { session, error } = manager.getSession("session-1");
-
-      expect(error).toBeNull();
-      expect(session).not.toBeNull();
-      expect(session?.history[0].role).toBe("system");
-      expect(manager.getSessionCount()).toBe(1);
+      expect(manager.hasSession("session-1")).toBe(false);
+      const state = manager.getSession("session-1");
+      expect(state).not.toBeNull();
+      expect(state.history[0].role).toBe("system");
+      expect(manager.getCount()).toBe(1);
     });
 
     test("should return existing session without incrementing count", () => {
       manager.getSession("session-1");
-      expect(manager.getSessionCount()).toBe(1);
+      expect(manager.getCount()).toBe(1);
 
-      const { session, error } = manager.getSession("session-1");
-      expect(error).toBeNull();
-      expect(session).not.toBeNull();
-      expect(manager.getSessionCount()).toBe(1); // Still 1, not 2
+      const state = manager.getSession("session-1");
+      expect(state).not.toBeNull();
+      expect(manager.getCount()).toBe(1); // Still 1, not 2
     });
 
-    test("should reject new session when at limit", () => {
-      // Create MAX_SESSIONS sessions
-      for (let i = 0; i < MAX_SESSIONS; i++) {
-        const { session, error } = manager.getSession(`session-${i}`);
-        expect(session).not.toBeNull();
-        expect(error).toBeNull();
-      }
-
-      // Next session should be rejected
-      const { session, error } = manager.getSession(`session-${MAX_SESSIONS}`);
-      expect(session).toBeNull();
-      expect(error).toContain("Session limit reached");
-      expect(manager.getSessionCount()).toBe(MAX_SESSIONS);
+    test("hasSession returns false for unknown session", () => {
+      expect(manager.hasSession("nonexistent")).toBe(false);
     });
 
-    test("should allow new sessions after clearing", () => {
-      // Create sessions up to limit
+    test("hasSession returns true after getSession creates it", () => {
+      manager.getSession("session-1");
+      expect(manager.hasSession("session-1")).toBe(true);
+    });
+
+    test("isAtLimit returns false when under limit", () => {
+      expect(manager.isAtLimit()).toBe(false);
+    });
+
+    test("isAtLimit returns true when at limit", () => {
       for (let i = 0; i < MAX_SESSIONS; i++) {
         manager.getSession(`session-${i}`);
       }
-      expect(manager.getSessionCount()).toBe(MAX_SESSIONS);
-
-      // Clear and try again
-      manager.clear();
-      const { session, error } = manager.getSession("new-session");
-      expect(session).not.toBeNull();
-      expect(error).toBeNull();
-      expect(manager.getSessionCount()).toBe(1);
+      expect(manager.isAtLimit()).toBe(true);
     });
 
-    test("should have proper error message format", () => {
-      // Create sessions up to limit
-      for (let i = 0; i < MAX_SESSIONS; i++) {
-        manager.getSession(`session-${i}`);
-      }
-
-      const { error } = manager.getSession("overflow");
-      expect(error).toMatch(/Session limit reached/);
-      expect(error).toMatch(/\d+/); // Should contain number
-    });
-
-    test("should track session count correctly with mixed creates/existing", () => {
-      // Create 3 sessions
+    test("getCount reflects number of sessions created", () => {
+      expect(manager.getCount()).toBe(0);
       manager.getSession("a");
       manager.getSession("b");
       manager.getSession("c");
-      expect(manager.getSessionCount()).toBe(3);
+      expect(manager.getCount()).toBe(3);
+    });
 
-      // Access existing sessions
+    test("should track session count correctly with mixed creates/existing", () => {
       manager.getSession("a");
       manager.getSession("b");
-      expect(manager.getSessionCount()).toBe(3); // Still 3
+      manager.getSession("c");
+      expect(manager.getCount()).toBe(3);
+
+      // Access existing sessions — count stays the same
+      manager.getSession("a");
+      manager.getSession("b");
+      expect(manager.getCount()).toBe(3);
 
       // Create new session
       manager.getSession("d");
-      expect(manager.getSessionCount()).toBe(4);
+      expect(manager.getCount()).toBe(4);
     });
 
-    test("should reject when limit is exactly at threshold", () => {
-      const limitedManager = new SessionManager(3);
+    test("clear removes a session", () => {
+      manager.getSession("session-1");
+      expect(manager.getCount()).toBe(1);
+      manager.clear("session-1");
+      expect(manager.getCount()).toBe(0);
+      expect(manager.hasSession("session-1")).toBe(false);
+    });
 
-      limitedManager.getSession("a");
-      limitedManager.getSession("b");
-      const { session: session3, error: error3 } = limitedManager.getSession("c");
+    test("isAtLimit becomes false after clear", () => {
+      const small = new SessionManager({ maxSessions: 2, systemPrompt: "" });
+      small.getSession("a");
+      small.getSession("b");
+      expect(small.isAtLimit()).toBe(true);
+      small.clear("a");
+      expect(small.isAtLimit()).toBe(false);
+    });
 
-      expect(session3).not.toBeNull();
-      expect(error3).toBeNull();
-      expect(limitedManager.getSessionCount()).toBe(3);
-
-      // 4th session should be rejected
-      const { session: session4, error: error4 } = limitedManager.getSession("d");
-      expect(session4).toBeNull();
-      expect(error4).not.toBeNull();
+    test("session history initialized with system prompt", () => {
+      const manager2 = new SessionManager({ maxSessions: 10, systemPrompt: "custom prompt" });
+      const state = manager2.getSession("x");
+      expect(state.history).toHaveLength(1);
+      expect(state.history[0]).toMatchObject({ role: "system", content: "custom prompt" });
     });
   });
 });

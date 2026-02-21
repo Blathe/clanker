@@ -16,6 +16,7 @@ export default {
       {
         useESM: true,
         tsconfig: 'tsconfig.test.json',
+        diagnostics: { ignoreCodes: [1343] },
       },
     ],
   },
@@ -26,4 +27,7 @@ export default {
     '!src/types.ts', // Type definitions
   ],
   coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
+  coverageThreshold: {
+    global: { branches: 30, functions: 40, lines: 40, statements: 40 },
+  },
 };

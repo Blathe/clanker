@@ -10,16 +10,34 @@ import { loadRuntimePromptContext } from "./context.js";
 import { runDiscordTransport } from "./transports/discord.js";
 import { runReplTransport } from "./transports/repl.js";
 import type { Channel, SendFn } from "./runtime.js";
-import { handleTurnAction, type DelegateResult } from "./turnHandlers.js";
+import { handleTurnAction, type QueueDelegateResult } from "./turnHandlers.js";
 import { JobQueue } from "./queue.js";
 import { envFlagEnabled, parseTransportsDetailed } from "./config.js";
 import { evaluate } from "./policy.js";
+import { validateWorkingDir } from "./executor.js";
+import type { DelegateResult } from "./delegation/types.js";
+import { buildDelegationPrompt } from "./delegation/promptBuilder.js";
+import { ProposalStore } from "./delegation/proposals.js";
+import {
+  runDelegationInIsolatedWorktree,
+  verifyProposalApplyPreconditions,
+  applyProposalPatch,
+  cleanupProposalArtifacts,
+} from "./delegation/worktree.js";
+import { handleDelegationControlCommand } from "./delegation/approval.js";
+import { getRuntimeConfig } from "./runtimeConfig.js";
+import { SessionManager } from "./session.js";
 import {
   initLogger,
   logUserInput,
   logLLMResponse,
   logSessionSummary,
   logSessionEnd,
+  logProposalCreated,
+  logProposalAccepted,
+  logProposalRejected,
+  logProposalExpired,
+  logProposalApplyFailed,
 } from "./logger.js";
 
 if (process.argv.includes("--version") || process.argv.includes("-v")) {
@@ -89,7 +107,14 @@ function promptSecret(question: string): Promise<string> {
   });
 }
 
-async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult> {
+const BASH_TOOL_NAMES = new Set(["bash", "bash_execute_command"]);
+const ALLOWED_FILE_TOOLS = new Set([
+  "str_replace_based_edit_tool", "str_replace_based_edit",
+  "create_file", "read_file", "write_file",
+  "view_file", "list_directory", "glob", "grep",
+]);
+
+async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<DelegateResult> {
   if (!ENABLE_CLAUDE_DELEGATE) {
     throw new Error("Claude delegation is disabled. Set ENABLE_CLAUDE_DELEGATE=1 to enable it.");
   }
@@ -99,44 +124,52 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
     throw new Error(apiKeyValidation.error!);
   }
 
-  const delegateModel = process.env.CLANKER_CLAUDE_ACTIVE_MODEL || "claude-sonnet-4-6";
+  const delegateModel = process.env.CLANKER_CLAUDE_ACTIVE_MODEL || RUNTIME_CONFIG.defaultClaudeModel;
+  const delegatedTaskPrompt = buildDelegationPrompt(delegatePrompt);
 
   try {
     let fullResponse = "";
     let resultMessage: { type: string; exitCode?: number; summary?: string } = { type: "unknown" };
 
     const q = query({
-      prompt: delegatePrompt,
+      prompt: delegatedTaskPrompt,
       options: {
         model: delegateModel,
+        ...(cwd ? { cwd } : {}),
         tools: { type: "preset", preset: "claude_code" },
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         canUseTool: async (toolName, toolInput) => {
-          // For bash_execute_command tool, evaluate the actual command string
-          let commandToEvaluate = toolName;
-          if (toolName === "bash_execute_command" && toolInput && typeof toolInput === "object") {
-            const input = toolInput as { command?: string };
-            if (input.command) {
-              commandToEvaluate = input.command;
+          if (BASH_TOOL_NAMES.has(toolName)) {
+            // For bash tools, evaluate the actual command string against policy
+            let commandToEvaluate = toolName;
+            if (toolInput && typeof toolInput === "object") {
+              const input = toolInput as { command?: string };
+              if (input.command) {
+                commandToEvaluate = input.command;
+              }
             }
-          }
 
-          const verdict = evaluate(commandToEvaluate);
-          console.log(`[Delegation] Tool use requested: ${toolName}`, {
-            decision: verdict.decision,
-            evaluated: commandToEvaluate.slice(0, 80),
-          });
+            const verdict = evaluate(commandToEvaluate);
+            console.log(`[Delegation] Tool use requested: ${toolName}`, {
+              decision: verdict.decision,
+              evaluated: commandToEvaluate.slice(0, 80),
+            });
 
-          if (verdict.decision === "allowed") {
+            if (verdict.decision === "allowed") {
+              return { behavior: "allow" };
+            } else {
+              const reason = "reason" in verdict ? verdict.reason : "denied by policy";
+              console.log(`[Delegation] Tool blocked: ${toolName} - ${reason}`);
+              return {
+                behavior: "deny",
+                message: `Command blocked by policy: ${reason}`,
+              };
+            }
+          } else if (ALLOWED_FILE_TOOLS.has(toolName)) {
             return { behavior: "allow" };
           } else {
-            const reason = "reason" in verdict ? verdict.reason : "denied by policy";
-            console.log(`[Delegation] Tool blocked: ${toolName} - ${reason}`);
-            return {
-              behavior: "deny",
-              message: `Command blocked by policy: ${reason}`,
-            };
+            return { behavior: "deny", message: `Tool not permitted in delegation context: ${toolName}` };
           }
         },
       },
@@ -170,13 +203,13 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
           resultMessage = {
             type: "success",
             exitCode: 0,
-            summary: (result.result || fullResponse).slice(-800).trim(),
+            summary: (result.result || fullResponse).slice(0, 800).trim(),
           };
         } else {
           resultMessage = {
             type: "error",
             exitCode: 1,
-            summary: (result.errors ? result.errors.join("\n") : "Unknown error").slice(-800).trim(),
+            summary: (result.errors ? result.errors.join("\n") : "Unknown error").slice(0, 800).trim(),
           };
         }
       } else {
@@ -186,7 +219,7 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
 
     return {
       exitCode: resultMessage.exitCode || 0,
-      summary: resultMessage.summary || fullResponse.slice(-800).trim(),
+      summary: resultMessage.summary || fullResponse.slice(0, 800).trim(),
     };
   } catch (err) {
     // Log full error for debugging, but throw generic error
@@ -198,6 +231,7 @@ async function delegateToClaude(delegatePrompt: string): Promise<DelegateResult>
 const DISCORD_UNSAFE_ENABLE_WRITES = envFlagEnabled("DISCORD_UNSAFE_ENABLE_WRITES");
 const ENABLE_CLAUDE_DELEGATE = envFlagEnabled("ENABLE_CLAUDE_DELEGATE");
 const TRANSPORTS = parseTransportsDetailed("CLANKER_TRANSPORTS");
+const RUNTIME_CONFIG = getRuntimeConfig();
 const REPL_INTERACTIVE_AVAILABLE = TRANSPORTS.repl && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 const runtimeLabel =
   process.platform === "win32"
@@ -206,15 +240,6 @@ const runtimeLabel =
       ? "the user's macOS machine"
       : "a Linux environment";
 const { systemPrompt: SYSTEM_PROMPT, lastSession: LAST_SESSION } = loadRuntimePromptContext(runtimeLabel);
-
-interface SessionState {
-  history: ChatCompletionMessageParam[];
-  busy: boolean;
-}
-
-const MAX_HISTORY = 50;
-const MAX_SESSIONS = 100;
-const MAX_USER_INPUT = 8000; // characters
 
 /**
  * Validates Anthropic API key format
@@ -236,76 +261,23 @@ export function validateAnthropicKey(key: string | undefined): { valid: boolean;
 }
 
 /**
- * Validates user input length to prevent DoS and memory exhaustion
- */
-export function validateInputLength(input: string): { valid: boolean; error: string | null } {
-  if (!input) {
-    return { valid: false, error: "Input cannot be empty" };
-  }
-
-  if (input.length > MAX_USER_INPUT) {
-    return {
-      valid: false,
-      error: `Input too long (${input.length} characters, max ${MAX_USER_INPUT}). Please keep your message shorter.`,
-    };
-  }
-
-  return { valid: true, error: null };
-}
-
-/**
  * Trims session history to prevent unbounded memory growth in long-running sessions.
  * Keeps the system prompt (always at index 0) and the most recent MAX_HISTORY messages.
  */
 function trimSessionHistory(history: ChatCompletionMessageParam[]): void {
-  if (history.length <= MAX_HISTORY + 1) {
+  if (history.length <= RUNTIME_CONFIG.maxHistory + 1) {
     return; // +1 for system prompt at index 0
   }
 
   // Keep system prompt and the most recent MAX_HISTORY messages
   const systemPrompt = history[0];
-  const recentMessages = history.slice(-(MAX_HISTORY));
+  const recentMessages = history.slice(-(RUNTIME_CONFIG.maxHistory));
   history.splice(0, history.length, systemPrompt, ...recentMessages);
 }
 
-/**
- * Manages sessions with a maximum concurrent limit.
- * Prevents memory exhaustion from unlimited session creation.
- */
-class SessionManager {
-  private sessions: Map<string, SessionState> = new Map();
-
-  getSession(sessionId: string): SessionState {
-    const existing = this.sessions.get(sessionId);
-    if (existing) return existing;
-
-    const created: SessionState = {
-      history: [{ role: "system", content: SYSTEM_PROMPT }],
-      busy: false,
-    };
-    this.sessions.set(sessionId, created);
-    return created;
-  }
-
-  hasSession(sessionId: string): boolean {
-    return this.sessions.has(sessionId);
-  }
-
-  isAtLimit(): boolean {
-    return this.sessions.size >= MAX_SESSIONS;
-  }
-
-  getCount(): number {
-    return this.sessions.size;
-  }
-
-  clear(sessionId: string): void {
-    this.sessions.delete(sessionId);
-  }
-}
-
-const sessionManager = new SessionManager();
+const sessionManager = new SessionManager({ maxSessions: RUNTIME_CONFIG.maxSessions, systemPrompt: SYSTEM_PROMPT });
 const jobQueue = new JobQueue();
+const proposalStore = new ProposalStore();
 const sessionTopics: string[] = [];
 
 initLogger();
@@ -320,6 +292,67 @@ function addTopic(channel: Channel, userInput: string): void {
   if (topicLine) {
     sessionTopics.push(`[${channel}] ${topicLine}`);
   }
+}
+
+function expireStaleProposals(now = Date.now()): void {
+  const expired = proposalStore.expireStale(now);
+  for (const proposal of expired) {
+    cleanupProposalArtifacts(proposal);
+    logProposalExpired(proposal.id);
+  }
+}
+
+async function delegateToClaudeWithReview(
+  sessionId: string,
+  delegatePrompt: string,
+  workingDir?: string
+): Promise<DelegateResult> {
+  if (workingDir) {
+    const wdValidation = validateWorkingDir(workingDir);
+    if (!wdValidation.valid) throw new Error(wdValidation.error);
+  }
+
+  const result = await runDelegationInIsolatedWorktree({
+    sessionId,
+    prompt: delegatePrompt,
+    repoRoot: workingDir,
+    runDelegate: (prompt, cwd) => delegateToClaude(prompt, cwd),
+  });
+
+  if (result.proposal) {
+    const created = proposalStore.createProposal(result.proposal);
+    if (!created.ok) {
+      cleanupProposalArtifacts(result.proposal);
+      throw new Error(created.error || "Could not store delegated proposal.");
+    }
+
+    logProposalCreated(
+      result.proposal.id,
+      result.proposal.sessionId,
+      result.proposal.changedFiles.length,
+      result.proposal.expiresAt
+    );
+
+    return {
+      exitCode: result.exitCode,
+      summary: result.summary,
+      proposal: {
+        id: result.proposal.id,
+        projectName: result.proposal.projectName,
+        expiresAt: result.proposal.expiresAt,
+        changedFiles: result.proposal.changedFiles,
+        diffStat: result.proposal.diffStat,
+        diffPreview: result.proposal.diffPreview,
+        fileDiffs: result.proposal.fileDiffs,
+      },
+    };
+  }
+
+  return {
+    exitCode: result.exitCode,
+    summary: result.summary,
+    noChanges: result.noChanges,
+  };
 }
 
 async function processTurn(sessionId: string, channel: Channel, userInput: string, send: SendFn): Promise<void> {
@@ -338,12 +371,37 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
 
   state.busy = true;
   try {
+    expireStaleProposals();
+
     state.history.push({ role: "user", content: userInput });
     logUserInput(`[${channel}:${sessionId}] ${userInput}`);
 
+    const control = await handleDelegationControlCommand({
+      channel,
+      sessionId,
+      userInput,
+      discordUnsafeEnableWrites: DISCORD_UNSAFE_ENABLE_WRITES,
+      now: () => Date.now(),
+      send,
+      history: state.history,
+      proposalStore,
+      verifyApplyPreconditions: verifyProposalApplyPreconditions,
+      applyPatch: applyProposalPatch,
+      cleanupProposal: cleanupProposalArtifacts,
+      onProposalExpired: (proposal) => logProposalExpired(proposal.id),
+      onProposalAccepted: (proposal) => logProposalAccepted(proposal.id),
+      onProposalRejected: (proposal) => logProposalRejected(proposal.id),
+      onProposalApplyFailed: (proposal, reason) => logProposalApplyFailed(proposal.id, reason),
+    });
+    if (control.handled) {
+      addTopic(channel, userInput);
+      trimSessionHistory(state.history);
+      return;
+    }
+
     let safetyCounter = 0;
     let broke = false;
-    while (safetyCounter < 8) {
+    while (safetyCounter < RUNTIME_CONFIG.maxActionsPerTurn) {
       safetyCounter += 1;
 
       let response;
@@ -354,17 +412,31 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         console.error(`[${channel}:${sessionId}] LLM error:`, err);
         await send("An error occurred while processing your request. Please try again.");
         state.history.pop();
+        trimSessionHistory(state.history);
         return;
       }
 
       state.history.push({ role: "assistant", content: JSON.stringify(response) });
       logLLMResponse(response);
 
-      const queueDelegate = (prompt: string, sendFn: SendFn, history: ChatCompletionMessageParam[]): boolean => {
-        return jobQueue.enqueue(
-          { id: randomUUID(), sessionId, prompt, send: sendFn, history },
-          delegateToClaude
+      const queueDelegate = (
+        prompt: string,
+        workingDir: string | undefined,
+        sendFn: SendFn,
+        history: ChatCompletionMessageParam[]
+      ): QueueDelegateResult => {
+        expireStaleProposals();
+
+        const existing = proposalStore.getProposal(sessionId);
+        if (existing) {
+          return { status: "pending", proposalId: existing.id };
+        }
+
+        const queued = jobQueue.enqueue(
+          { id: randomUUID(), sessionId, prompt, send: sendFn, history, trimHistory: () => trimSessionHistory(state.history) },
+          (delegatePrompt: string) => delegateToClaudeWithReview(sessionId, delegatePrompt, workingDir)
         );
+        return queued ? { status: "queued" } : { status: "full" };
       };
 
       const outcome = await handleTurnAction({
@@ -375,7 +447,8 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         discordUnsafeEnableWrites: DISCORD_UNSAFE_ENABLE_WRITES,
         delegateEnabled: ENABLE_CLAUDE_DELEGATE,
         promptSecret,
-        delegateToClaude,
+        delegateToClaude: (prompt, workingDir) =>
+          delegateToClaudeWithReview(sessionId, prompt, workingDir),
         queueDelegate,
       });
       if (outcome === "continue") {
@@ -410,7 +483,6 @@ function printStartupBanner(): void {
     ...(TRANSPORTS.discord ? ["discord"] : []),
   ];
   console.log(`Enabled transports: ${enabledTransports.join(", ")}`);
-  console.log("Default passphrase for write operations: mypassphrase");
   if (!ENABLE_CLAUDE_DELEGATE) {
     console.log("Claude delegation is disabled (ENABLE_CLAUDE_DELEGATE is not set).");
   }

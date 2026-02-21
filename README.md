@@ -13,7 +13,7 @@ A security-focused TypeScript CLI agent that runs interactive chat over local RE
 - **Multi-Transport Chat** — Run local REPL and Discord bot transport in the same process
 - **Passphrase Protection** — Sensitive operations (writes, moves, etc.) require authentication
 - **Async Job Queue** — Long-running delegation tasks execute in background without blocking sessions
-- **Claude Delegation (Optional)** — Complex programming tasks can be delegated to Claude Code when enabled
+- **Claude Delegation Review Gate (Optional)** — Delegated tasks run in isolated worktrees and return accept/reject diff proposals
 - **Git Support** — Execute git commands (status, log, diff, add, commit, fetch, etc.) while blocking destructive operations
 - **Environment Doctor** — Validate your configuration before startup with `npm run doctor`
 
@@ -119,8 +119,14 @@ The agent responds in one of four structured formats:
 |------|-------------|
 | `command` | Run a shell command (subject to policy evaluation) |
 | `edit` | Apply a targeted find-and-replace to a single file (requires passphrase) |
-| `delegate` | Hand off a complex programming task to Claude Code |
+| `delegate` | Hand off a complex programming task to Claude Code (supports optional `working_dir`) |
 | `message` | Plain text reply with no action |
+
+Delegation review commands (all transports):
+
+- `pending` — show the current pending delegated proposal for this session
+- `accept` or `accept <proposalId>` — apply the pending proposal patch
+- `reject` or `reject <proposalId>` — discard the pending proposal patch
 
 ## Configuration
 
@@ -137,11 +143,27 @@ Rules are evaluated in order; first match wins. Default action is **block**.
 | `DISCORD_UNSAFE_ENABLE_WRITES` | Allows Discord-triggered write/delegate actions (unsafe) |
 | `SHELL_BIN` | Optional shell path override used by command execution |
 
+### Runtime Tuning Overrides
+
+Optional `CLANKER_*` overrides are available for model and safety/performance limits:
+
+- `CLANKER_OPENAI_MODEL`, `CLANKER_OPENAI_MAX_TOKENS`
+- `CLANKER_MAX_HISTORY`, `CLANKER_MAX_SESSIONS`, `CLANKER_MAX_USER_INPUT`
+- `CLANKER_MAX_COMMAND_LENGTH`, `CLANKER_MAX_OUTPUT_BYTES`
+- `CLANKER_QUEUE_MAX_CONCURRENT_JOBS`
+- `CLANKER_DELEGATE_PROPOSAL_TTL_MS`
+- `CLANKER_DELEGATE_DIFF_PREVIEW_MAX_LINES`, `CLANKER_DELEGATE_DIFF_PREVIEW_MAX_CHARS`
+- `CLANKER_DELEGATE_FILE_DIFF_MAX_LINES`, `CLANKER_DELEGATE_FILE_DIFF_MAX_CHARS`
+- `CLANKER_LOGGER_MAX_OUT`, `CLANKER_LOGGER_MAX_CMD`, `CLANKER_LOGGER_MAX_MSG`
+
+`npm run doctor` validates these overrides and fails on invalid values.
+
 | Rule | Matches | Action |
 |------|---------|--------|
 | `allow-git-commands` | Most git operations (status, log, diff, add, commit, fetch, pull, merge) | Allow |
 | `allow-reads` | ls, cat, grep, head, tail, find, pwd, echo, which, env | Allow |
-| `block-network` | curl, wget, nc, ssh, scp | Block |
+| `allow-curl` | curl (without command chaining) | Allow |
+| `block-network` | wget, nc, ssh, scp | Block |
 | `block-rm-rf` | `rm -rf` patterns | Block |
 | `secret-for-write` | tee, mv, cp, mkdir, touch, chmod, dd, redirects | Requires passphrase |
 | `blocked-shell-commands` | ps | Block |
@@ -183,6 +205,8 @@ The local REPL supports these built-in slash commands:
 | `/clear` | Clear the current conversation history |
 | `/exit`  | Gracefully exit the agent |
 
+Delegation control commands are handled in chat as conversational keywords: `pending`, `accept`, `reject`.
+
 ## Project Structure
 
 ```
@@ -208,7 +232,7 @@ tests/
   unit/           # Unit tests (181 tests across policy, executor, session, queue, etc.)
 MEMORY.md         # Persistent agent memory (optional, not committed)
 policy.json       # Security policy rules (allow/block/requires-secret)
-Dockerfile        # Docker image with Node 22 and git
+Dockerfile        # Docker image with Node 22, git, and curl
 docker-compose.yml # Docker Compose for daemon mode
 sessions/         # Session logs (git-ignored)
 ```
@@ -233,7 +257,7 @@ Type /help for local REPL slash commands.
 > list files in current directory
 [allow-reads rule → executes `ls`]
 
-> download example.zip from the web
+> download example.zip using wget
 [block-network rule → blocked]
 
 > create a new directory called mydir
@@ -251,10 +275,11 @@ Available slash commands:
 ## Security Notes
 
 - All shell commands are blocked by default unless explicitly allowed by a policy rule
-- Network operations are blocked by default
+- Most network operations are blocked by default (`curl` is explicitly allowed)
 - Destructive operations (`rm -rf`) are blocked
 - Write operations and file edits require passphrase authentication
-- Discord users cannot trigger write or delegate actions unless `DISCORD_UNSAFE_ENABLE_WRITES=1`
+- Delegated file changes are proposed first and are only applied after `accept`
+- Discord users cannot trigger write, apply, or delegate actions unless `DISCORD_UNSAFE_ENABLE_WRITES=1`
 - Policies are evaluated in order; customize `policy.json` for your needs
 
 ## License

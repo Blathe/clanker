@@ -1,8 +1,9 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { join, dirname } from "node:path";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { join } from "node:path";
+import {
+  composeSystemPromptFromTemplates,
+  loadPromptTemplates,
+} from "./prompt/loadPrompts.js";
 
 /**
  * Validates that a filename matches the expected session file format
@@ -13,32 +14,22 @@ function isValidSessionFilename(filename: string): boolean {
 }
 
 /**
- * Filters filenames to only valid session files
- */
-function filterValidSessionFiles(filenames: string[]): string[] {
-  return filenames.filter(isValidSessionFilename);
-}
-
-/**
  * Extracts the timestamp from a session filename
  * Expected format: YYYY-MM-DDTHH-MM-SS_<pid>.jsonl
  * Returns timestamp in format "YYYY-MM-DD HH:MM:SS" for display
  */
 function extractSessionTimestamp(filename: string): string | null {
-  // Validate filename format: should end with _<numbers>.jsonl
   const match = filename.match(/^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})_(\d+)\.jsonl$/);
   if (!match) {
-    return null; // Invalid format
+    return null;
   }
 
-  const timestamp = match[1]; // e.g., "2024-01-15T14-30-45"
-  // Convert T to space and hyphens to colons in time portion
-  // "2024-01-15T14-30-45" -> "2024-01-15 14:30:45"
+  const timestamp = match[1];
   return timestamp.replace("T", " ").replace(/-(\d{2})-(\d{2})$/, ":$1:$2");
 }
 
 function loadSoul(): string {
-  const soulPath = join(__dirname, "..", "config", "SOUL.md");
+  const soulPath = join(process.cwd(), "config", "SOUL.md");
   if (existsSync(soulPath)) {
     return readFileSync(soulPath, "utf8").trim() + "\n\n";
   }
@@ -46,22 +37,22 @@ function loadSoul(): string {
 }
 
 function loadMemory(): string {
-  const memoryPath = join(__dirname, "..", "MEMORY.md");
+  const memoryPath = join(process.cwd(), "MEMORY.md");
   if (existsSync(memoryPath)) {
     return "## Persistent Memory\n\n" + readFileSync(memoryPath, "utf8").trim() + "\n\n";
   }
   return "";
 }
 
-function loadLastSession(): string {
-  const sessionsDir = join(__dirname, "..", "sessions");
+export function loadLastSession(sessionsDir?: string): string {
+  if (!sessionsDir) sessionsDir = join(process.cwd(), "sessions");
   if (!existsSync(sessionsDir)) return "";
 
   let files: string[];
   try {
     files = readdirSync(sessionsDir)
       .filter((f) => f.endsWith(".jsonl"))
-      .filter(isValidSessionFilename) // Only accept properly formatted session files
+      .filter(isValidSessionFilename)
       .sort();
   } catch {
     return "";
@@ -82,7 +73,7 @@ function loadLastSession(): string {
     try {
       entries.push(JSON.parse(line) as Record<string, unknown>);
     } catch {
-      // skip malformed lines
+      // Skip malformed lines
     }
   }
 
@@ -99,7 +90,12 @@ function loadLastSession(): string {
     if (topics.length > 0) {
       const fileName = files[files.length - 1];
       const stamp = extractSessionTimestamp(fileName) || "unknown time";
-      return "## Last Session Summary\n\n" + `Session (${stamp}):\n` + topics.map((t) => `- ${t}`).join("\n") + "\n\n";
+      return (
+        "## Last Session Summary\n\n" +
+        `Session (${stamp}):\n` +
+        topics.map((t) => `- ${t}`).join("\n") +
+        "\n\n"
+      );
     }
   }
 
@@ -129,6 +125,9 @@ function loadLastSession(): string {
       case "end":
         events.push("[Session ended]");
         break;
+      case "proposal":
+        events.push(`Proposal event: ${entry.action} (${entry.id})`);
+        break;
     }
   }
 
@@ -146,31 +145,15 @@ export function loadRuntimePromptContext(runtimeLabel: string): { systemPrompt: 
   const soul = loadSoul();
   const memory = loadMemory();
   const lastSession = loadLastSession();
+  const templates = loadPromptTemplates();
 
-  const systemPrompt = `${soul}${memory}${lastSession}You are a local system agent running on ${runtimeLabel}.
-Express your personality above through the "explanation" fields — that's where your voice lives. The outer structure must always be valid JSON.
-Respond with a JSON object in one of these four formats:
-
-To run a read-only command (ls, cat, grep, find, ps, etc.):
-{ "type": "command", "command": "<bash command>", "explanation": "<what this does and why>" }
-
-To edit a single file with a known, targeted change:
-{ "type": "edit", "file": "<path>", "old": "<exact text to replace>", "new": "<replacement text>", "explanation": "<what this change does>" }
-
-To delegate a complex programming task to Claude:
-{ "type": "delegate", "prompt": "<full self-contained task description>", "explanation": "<why delegating to Claude>" }
-
-To reply with text only:
-{ "type": "message", "explanation": "<your response>" }
-
-Routing rules:
-- Use "command" for simple system tasks: checking ports, listing files, searching, reading files.
-- Use "edit" for small targeted changes to a single file when you have already read its contents.
-- Use "delegate" for programming work: new features, refactoring, bug fixes, multi-file changes, anything requiring understanding of the codebase. Write the prompt as a complete, self-contained instruction Claude can act on immediately.
-- Use "message" for questions, explanations, or anything that needs no action.
-- Read command output WILL be sent back to you. Always cat a file before using "edit".
-- Only propose one action per response.
-Always respond with valid JSON.`;
+  const systemPrompt = composeSystemPromptFromTemplates({
+    runtimeLabel,
+    soul,
+    memory,
+    lastSession,
+    templates,
+  });
 
   return { systemPrompt, lastSession };
 }

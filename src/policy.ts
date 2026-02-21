@@ -1,15 +1,26 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { z } from "zod";
 import type { PolicyConfig, PolicyRule, PolicyVerdict } from "./types.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const PolicyRuleSchema = z.object({
+  id: z.string().min(1),
+  description: z.string(),
+  pattern: z.string().min(1),
+  action: z.enum(["allow", "block", "requires-secret"]),
+  secret_hash: z.string().optional(),
+});
+
+const PolicyConfigSchema = z.object({
+  default_action: z.enum(["allow", "block"]),
+  rules: z.array(PolicyRuleSchema),
+});
 
 function loadPolicy(): PolicyConfig {
-  const policyPath = join(__dirname, "..", "policy.json");
+  const policyPath = join(process.cwd(), "policy.json");
   const raw = readFileSync(policyPath, "utf8");
-  return JSON.parse(raw) as PolicyConfig;
+  return PolicyConfigSchema.parse(JSON.parse(raw));
 }
 
 let _policy: PolicyConfig | null = null;
@@ -19,6 +30,10 @@ function getPolicy(): PolicyConfig {
     _policy = loadPolicy();
   }
   return _policy;
+}
+
+export function resetPolicyForTest(): void {
+  _policy = null;
 }
 
 export function evaluate(command: string): PolicyVerdict {

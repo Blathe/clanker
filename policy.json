@@ -2,8 +2,14 @@
     "default_action": "block",
     "rules": [
         {
+            "id": "allow-curl",
+            "pattern": "^curl\\b(?!.*(?:-d\\s*@|--data\\s*@|--data-binary\\s*@|--upload-file|\\s-T\\s))(?:\\s+(?:[^;|&]|\\\\[;|&])*)?$",
+            "action": "allow",
+            "description": "Allow curl network requests (no command chaining, no file upload)"
+        },
+        {
             "id": "block-network",
-            "pattern": "\\b(curl|wget|nc|ssh|scp)\\b",
+            "pattern": "\\b(wget|nc|ssh|scp)\\b",
             "action": "block",
             "description": "Network commands blocked"
         },
@@ -22,13 +28,19 @@
         },
         {
             "id": "allow-git-commands",
-            "pattern": "^git\\b(?!.*(?:--hard|--force|-f(?:\\s|$)|-D(?:\\s|$)|clean\\s+.*-f))(?:[^;|&]|\\\\[;|&])*$",
+            "pattern": "^git\\b(?!.*(?:--hard|--force|-f(?:\\s|$)|-D(?:\\s|$)|clean\\s+.*-f|\\bpush\\b|config.*--global))(?:[^;|&]|\\\\[;|&])*$",
             "action": "allow",
-            "description": "Allow most git commands except destructive operations (--hard, --force, force-delete)"
+            "description": "Allow most git commands except destructive operations (--hard, --force, force-delete, push, config --global)"
+        },
+        {
+            "id": "block-sessions-dir",
+            "pattern": "\\bsessions/",
+            "action": "block",
+            "description": "Block access to session log files"
         },
         {
             "id": "allow-reads",
-            "pattern": "^(ls|cat|head|tail|grep|find|pwd|which|env)(?:\\s+(?:[^;|&]|\\\\[;|&])*)?$",
+            "pattern": "^(ls|cat|head|tail|grep|find|pwd|which)(?:\\s+(?:[^;|&]|\\\\[;|&])*)?$",
             "action": "allow",
             "description": "Read-only inspection"
         },
