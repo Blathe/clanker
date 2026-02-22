@@ -80,4 +80,35 @@ describe("proposal repositories", () => {
     repo.set(sampleRecord());
     expect(repo.has("s-1")).toBe(true);
   });
+
+  test("file repository persists via temp file rename", () => {
+    const dir = mkdtempSync(join(tmpdir(), "clanker-proposals-"));
+    const filePath = join(dir, "proposals.json");
+    const writes: Array<{ path: string; text: string }> = [];
+    const renames: Array<{ from: string; to: string }> = [];
+    const mkdirs: string[] = [];
+
+    const repo = new FileProposalRepository({
+      filePath,
+      mkdirDir: (path) => {
+        mkdirs.push(path);
+      },
+      readTextFile: () => {
+        throw new Error("not found");
+      },
+      writeTextFile: (path, text) => {
+        writes.push({ path, text });
+      },
+      renamePath: (from, to) => {
+        renames.push({ from, to });
+      },
+    });
+
+    repo.set(sampleRecord());
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0].path.endsWith(".tmp")).toBe(true);
+    expect(renames).toEqual([{ from: writes[0].path, to: filePath }]);
+    expect(mkdirs).toContain(dir);
+  });
 });

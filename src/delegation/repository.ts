@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { PendingProposal } from "./proposals.js";
 import type { DelegationState } from "./stateMachine.js";
@@ -51,14 +51,26 @@ interface FileRepositoryPayload {
 
 export interface FileProposalRepositoryOptions {
   filePath?: string;
+  readTextFile?: (path: string) => string;
+  writeTextFile?: (path: string, text: string) => void;
+  renamePath?: (from: string, to: string) => void;
+  mkdirDir?: (path: string) => void;
 }
 
 export class FileProposalRepository implements ProposalRepository {
   private readonly filePath: string;
   private readonly bySession: Map<string, StoredProposalRecord>;
+  private readonly readTextFile: (path: string) => string;
+  private readonly writeTextFile: (path: string, text: string) => void;
+  private readonly renamePath: (from: string, to: string) => void;
+  private readonly mkdirDir: (path: string) => void;
 
   constructor(options: FileProposalRepositoryOptions = {}) {
     this.filePath = options.filePath ?? join(process.cwd(), "sessions", "proposals.json");
+    this.readTextFile = options.readTextFile ?? ((path) => readFileSync(path, "utf8"));
+    this.writeTextFile = options.writeTextFile ?? ((path, text) => writeFileSync(path, text, "utf8"));
+    this.renamePath = options.renamePath ?? ((from, to) => renameSync(from, to));
+    this.mkdirDir = options.mkdirDir ?? ((path) => mkdirSync(path, { recursive: true }));
     this.bySession = this.load();
   }
 
@@ -91,7 +103,7 @@ export class FileProposalRepository implements ProposalRepository {
   private load(): Map<string, StoredProposalRecord> {
     let raw = "";
     try {
-      raw = readFileSync(this.filePath, "utf8");
+      raw = this.readTextFile(this.filePath);
     } catch {
       return new Map();
     }
@@ -113,11 +125,13 @@ export class FileProposalRepository implements ProposalRepository {
   }
 
   private persist(): void {
-    mkdirSync(dirname(this.filePath), { recursive: true });
+    this.mkdirDir(dirname(this.filePath));
     const payload: FileRepositoryPayload = {
       version: 1,
       records: [...this.bySession.values()],
     };
-    writeFileSync(this.filePath, JSON.stringify(payload, null, 2), "utf8");
+    const tmpPath = `${this.filePath}.tmp`;
+    this.writeTextFile(tmpPath, JSON.stringify(payload, null, 2));
+    this.renamePath(tmpPath, this.filePath);
   }
 }
