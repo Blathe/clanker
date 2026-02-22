@@ -287,6 +287,9 @@ const delegationService = new DelegationService({
       proposal.expiresAt
     );
   },
+  onProposalExpired: (proposal) => {
+    logProposalExpired(proposal.id);
+  },
 });
 const sessionTopics: string[] = [];
 
@@ -301,14 +304,6 @@ function addTopic(channel: Channel, userInput: string): void {
   const topicLine = userInput.trim().slice(0, 100);
   if (topicLine) {
     sessionTopics.push(`[${channel}] ${topicLine}`);
-  }
-}
-
-function expireStaleProposals(now = Date.now()): void {
-  const expired = proposalStore.expireStale(now);
-  for (const proposal of expired) {
-    cleanupProposalArtifacts(proposal);
-    logProposalExpired(proposal.id);
   }
 }
 
@@ -342,7 +337,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
 
   state.busy = true;
   try {
-    expireStaleProposals();
+    delegationService.expireStaleProposals();
 
     state.history.push({ role: "user", content: userInput });
     logUserInput(`[${channel}:${sessionId}] ${userInput}`);
@@ -396,7 +391,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         sendFn: SendFn,
         history: ChatCompletionMessageParam[]
       ): QueueDelegateResult => {
-        expireStaleProposals();
+        delegationService.expireStaleProposals();
 
         const existing = proposalStore.getProposal(sessionId);
         if (existing) {

@@ -29,12 +29,13 @@ export interface DelegationTransitionEvent {
 }
 
 export interface DelegationServiceDeps {
-  proposalStore: Pick<ProposalStore, "createProposal">;
+  proposalStore: Pick<ProposalStore, "createProposal" | "expireStale">;
   validateWorkingDir: (dir: string) => WorkingDirValidationResult;
   runDelegationInIsolatedWorktree?: (input: WorktreeDelegationInput) => Promise<WorktreeDelegationResult>;
   cleanupProposalArtifacts?: (proposal: CreateProposalInput) => void;
   runDelegate: (prompt: string, cwd?: string) => Promise<{ exitCode: number; summary: string }>;
   onProposalCreated?: (proposal: CreateProposalInput) => void;
+  onProposalExpired?: (proposal: CreateProposalInput) => void;
   onStateTransition?: (event: DelegationTransitionEvent) => void;
   createRunId?: () => string;
 }
@@ -44,6 +45,17 @@ export class DelegationService {
 
   constructor(deps: DelegationServiceDeps) {
     this.deps = deps;
+  }
+
+  expireStaleProposals(now = Date.now()): number {
+    const cleanupProposalArtifacts =
+      this.deps.cleanupProposalArtifacts ?? cleanupProposalArtifactsDefault;
+    const expired = this.deps.proposalStore.expireStale(now);
+    for (const proposal of expired) {
+      cleanupProposalArtifacts(proposal);
+      this.deps.onProposalExpired?.(proposal);
+    }
+    return expired.length;
   }
 
   async delegateWithReview(input: DelegateWithReviewInput): Promise<DelegateResult> {

@@ -29,6 +29,29 @@ function sampleProposal(overrides: Partial<PendingProposal> = {}): PendingPropos
 }
 
 describe("DelegationService", () => {
+  test("expires stale proposals and runs cleanup callbacks", () => {
+    const proposal = sampleProposal();
+    const cleanupProposalArtifacts = jest.fn();
+    const onProposalExpired = jest.fn();
+    const service = new DelegationService({
+      proposalStore: {
+        createProposal: jest.fn(),
+        expireStale: jest.fn().mockReturnValue([proposal]),
+      } as any,
+      validateWorkingDir: () => ({ valid: true }),
+      runDelegationInIsolatedWorktree: jest.fn(),
+      cleanupProposalArtifacts,
+      runDelegate: jest.fn(),
+      onProposalExpired,
+    });
+
+    const expiredCount = service.expireStaleProposals(2001);
+
+    expect(expiredCount).toBe(1);
+    expect(cleanupProposalArtifacts).toHaveBeenCalledWith(proposal);
+    expect(onProposalExpired).toHaveBeenCalledWith(proposal);
+  });
+
   test("rejects invalid working directory", async () => {
     const onStateTransition = jest.fn();
     const service = new DelegationService({
