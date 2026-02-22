@@ -18,6 +18,7 @@ import { validateWorkingDir } from "./executor.js";
 import type { DelegateResult } from "./delegation/types.js";
 import { buildDelegationPrompt } from "./delegation/promptBuilder.js";
 import { ProposalStore } from "./delegation/proposals.js";
+import { classifyDelegationTool, extractCommandForPolicy } from "./delegation/toolPermissions.js";
 import {
   runDelegationInIsolatedWorktree,
   verifyProposalApplyPreconditions,
@@ -107,13 +108,6 @@ function promptSecret(question: string): Promise<string> {
   });
 }
 
-const BASH_TOOL_NAMES = new Set(["bash", "bash_execute_command"]);
-const ALLOWED_FILE_TOOLS = new Set([
-  "str_replace_based_edit_tool", "str_replace_based_edit",
-  "create_file", "read_file", "write_file",
-  "view_file", "list_directory", "glob", "grep",
-]);
-
 async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<DelegateResult> {
   if (!ENABLE_CLAUDE_DELEGATE) {
     throw new Error("Claude delegation is disabled. Set ENABLE_CLAUDE_DELEGATE=1 to enable it.");
@@ -140,15 +134,10 @@ async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<D
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         canUseTool: async (toolName, toolInput) => {
-          if (BASH_TOOL_NAMES.has(toolName)) {
+          const toolKind = classifyDelegationTool(toolName);
+          if (toolKind === "bash") {
             // For bash tools, evaluate the actual command string against policy
-            let commandToEvaluate = toolName;
-            if (toolInput && typeof toolInput === "object") {
-              const input = toolInput as { command?: string };
-              if (input.command) {
-                commandToEvaluate = input.command;
-              }
-            }
+            const commandToEvaluate = extractCommandForPolicy(toolName, toolInput);
 
             const verdict = evaluate(commandToEvaluate);
             console.log(`[Delegation] Tool use requested: ${toolName}`, {
@@ -166,7 +155,7 @@ async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<D
                 message: `Command blocked by policy: ${reason}`,
               };
             }
-          } else if (ALLOWED_FILE_TOOLS.has(toolName)) {
+          } else if (toolKind === "file") {
             return { behavior: "allow" };
           } else {
             return { behavior: "deny", message: `Tool not permitted in delegation context: ${toolName}` };
