@@ -35,10 +35,12 @@ describe("ProposalStore", () => {
     const store = new ProposalStore();
     const created = store.createProposal(sampleInput());
     expect(created.ok).toBe(true);
+    expect(created.state?.status).toBe("proposal_ready");
 
     const got = store.getProposal("s-1");
     expect(got).not.toBeNull();
     expect(got?.id).toBe("p-1");
+    expect(store.getState("s-1")?.status).toBe("proposal_ready");
   });
 
   test("enforces one pending proposal per session", () => {
@@ -55,20 +57,24 @@ describe("ProposalStore", () => {
     const store = new ProposalStore();
     store.createProposal(sampleInput());
 
-    const accepted = store.acceptProposal("s-1");
+    const accepted = store.acceptProposal("s-1", undefined, 1_700_000_100_000);
     expect(accepted.ok).toBe(true);
     expect(accepted.proposal?.id).toBe("p-1");
+    expect(accepted.state?.status).toBe("accepted");
     expect(store.getProposal("s-1")).toBeNull();
+    expect(store.getState("s-1")).toBeNull();
   });
 
   test("rejectProposal removes and returns proposal", () => {
     const store = new ProposalStore();
     store.createProposal(sampleInput());
 
-    const rejected = store.rejectProposal("s-1");
+    const rejected = store.rejectProposal("s-1", undefined, 1_700_000_100_000);
     expect(rejected.ok).toBe(true);
     expect(rejected.proposal?.id).toBe("p-1");
+    expect(rejected.state?.status).toBe("rejected");
     expect(store.getProposal("s-1")).toBeNull();
+    expect(store.getState("s-1")).toBeNull();
   });
 
   test("id resolution rejects mismatched id", () => {
@@ -111,6 +117,8 @@ describe("ProposalStore", () => {
     const expired = store.expireStale(101);
     expect(expired.map((p) => p.id)).toEqual(["p-exp"]);
     expect(store.getProposal("s-exp")).toBeNull();
+    expect(store.getState("s-exp")).toBeNull();
     expect(store.getProposal("s-live")?.id).toBe("p-live");
+    expect(store.getState("s-live")?.status).toBe("proposal_ready");
   });
 });

@@ -94,7 +94,7 @@ export async function handleDelegationControlCommand(deps: ApprovalDeps): Promis
   }
 
   if (parsed.type === "reject") {
-    const resolved = deps.proposalStore.rejectProposal(deps.sessionId, parsed.proposalId);
+    const resolved = deps.proposalStore.rejectProposal(deps.sessionId, parsed.proposalId, deps.now());
     if (!resolved.ok || !resolved.proposal) {
       if (expiredForSession) {
         await deps.send("The pending proposal expired and was discarded.");
@@ -148,7 +148,7 @@ export async function handleDelegationControlCommand(deps: ApprovalDeps): Promis
     return { handled: true };
   }
 
-  const accepted = deps.proposalStore.acceptProposal(deps.sessionId, parsed.proposalId);
+  const accepted = deps.proposalStore.acceptProposal(deps.sessionId, parsed.proposalId, deps.now());
   if (!accepted.ok || !accepted.proposal) {
     const msg = accepted.error || "Proposal applied, but internal state did not resolve.";
     await deps.send(msg);

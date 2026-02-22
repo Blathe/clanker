@@ -1,4 +1,9 @@
 import type { ProposalFileDiff } from "./types.js";
+import {
+  createQueuedDelegationState,
+  transitionDelegationState,
+  type DelegationState,
+} from "./stateMachine.js";
 
 export interface PendingProposal {
   id: string;
@@ -23,26 +28,51 @@ export type CreateProposalInput = PendingProposal;
 export interface ProposalResolutionResult {
   ok: boolean;
   proposal?: PendingProposal;
+  state?: DelegationState;
   error?: string;
 }
 
+interface StoredProposalRecord {
+  proposal: PendingProposal;
+  state: DelegationState;
+}
+
 export class ProposalStore {
-  private bySession: Map<string, PendingProposal> = new Map();
+  private bySession: Map<string, StoredProposalRecord> = new Map();
 
   createProposal(input: CreateProposalInput): ProposalResolutionResult {
     const existing = this.bySession.get(input.sessionId);
     if (existing) {
       return {
         ok: false,
-        error: `Session ${input.sessionId} already has a pending proposal (${existing.id}).`,
+        error: `Session ${input.sessionId} already has a pending proposal (${existing.proposal.id}).`,
       };
     }
-    this.bySession.set(input.sessionId, input);
-    return { ok: true, proposal: input };
+
+    const queued = createQueuedDelegationState(input.createdAt);
+    const running = transitionDelegationState(queued, { type: "start", at: input.createdAt });
+    if (!running.ok) {
+      return { ok: false, error: running.error };
+    }
+    const ready = transitionDelegationState(running.state, {
+      type: "delegate_success_with_diff",
+      at: input.createdAt,
+      proposalId: input.id,
+    });
+    if (!ready.ok) {
+      return { ok: false, error: ready.error };
+    }
+
+    this.bySession.set(input.sessionId, { proposal: input, state: ready.state });
+    return { ok: true, proposal: input, state: ready.state };
   }
 
   getProposal(sessionId: string): PendingProposal | null {
-    return this.bySession.get(sessionId) ?? null;
+    return this.bySession.get(sessionId)?.proposal ?? null;
+  }
+
+  getState(sessionId: string): DelegationState | null {
+    return this.bySession.get(sessionId)?.state ?? null;
   }
 
   hasPending(sessionId: string): boolean {
@@ -51,31 +81,61 @@ export class ProposalStore {
 
   listPending(sessionId?: string): PendingProposal[] {
     if (sessionId) {
-      const proposal = this.bySession.get(sessionId);
-      return proposal ? [proposal] : [];
+      const record = this.bySession.get(sessionId);
+      return record ? [record.proposal] : [];
     }
-    return [...this.bySession.values()];
+    return [...this.bySession.values()].map((record) => record.proposal);
   }
 
-  acceptProposal(sessionId: string, optionalId?: string): ProposalResolutionResult {
+  acceptProposal(sessionId: string, optionalId?: string, at: number = Date.now()): ProposalResolutionResult {
     const resolved = this.resolve(sessionId, optionalId);
-    if (!resolved.ok || !resolved.proposal) return resolved;
+    if (!resolved.ok || !resolved.proposal || !resolved.state) return resolved;
+
+    const transitioned = transitionDelegationState(resolved.state, {
+      type: "accept",
+      at,
+      proposalId: optionalId,
+    });
+    if (!transitioned.ok) {
+      return { ok: false, error: transitioned.error };
+    }
+
     this.bySession.delete(sessionId);
-    return resolved;
+    return { ok: true, proposal: resolved.proposal, state: transitioned.state };
   }
 
-  rejectProposal(sessionId: string, optionalId?: string): ProposalResolutionResult {
+  rejectProposal(sessionId: string, optionalId?: string, at: number = Date.now()): ProposalResolutionResult {
     const resolved = this.resolve(sessionId, optionalId);
-    if (!resolved.ok || !resolved.proposal) return resolved;
+    if (!resolved.ok || !resolved.proposal || !resolved.state) return resolved;
+
+    const transitioned = transitionDelegationState(resolved.state, {
+      type: "reject",
+      at,
+      proposalId: optionalId,
+    });
+    if (!transitioned.ok) {
+      return { ok: false, error: transitioned.error };
+    }
+
     this.bySession.delete(sessionId);
-    return resolved;
+    return { ok: true, proposal: resolved.proposal, state: transitioned.state };
   }
 
   expireStale(now: number = Date.now()): PendingProposal[] {
     const expired: PendingProposal[] = [];
-    for (const [sessionId, proposal] of this.bySession.entries()) {
-      if (proposal.expiresAt <= now) {
-        expired.push(proposal);
+    for (const [sessionId, record] of this.bySession.entries()) {
+      if (record.proposal.expiresAt <= now) {
+        const transitioned = transitionDelegationState(record.state, {
+          type: "expire",
+          at: now,
+        });
+        if (!transitioned.ok) {
+          // Remove stale records even if state bookkeeping was already terminal.
+          this.bySession.delete(sessionId);
+          expired.push(record.proposal);
+          continue;
+        }
+        expired.push(record.proposal);
         this.bySession.delete(sessionId);
       }
     }
@@ -83,19 +143,19 @@ export class ProposalStore {
   }
 
   private resolve(sessionId: string, optionalId?: string): ProposalResolutionResult {
-    const proposal = this.bySession.get(sessionId);
-    if (!proposal) {
+    const record = this.bySession.get(sessionId);
+    if (!record) {
       return {
         ok: false,
         error: `No pending proposal exists for session ${sessionId}.`,
       };
     }
-    if (optionalId && proposal.id !== optionalId) {
+    if (optionalId && record.proposal.id !== optionalId) {
       return {
         ok: false,
-        error: `Proposal id ${optionalId} does not match pending proposal ${proposal.id}.`,
+        error: `Proposal id ${optionalId} does not match pending proposal ${record.proposal.id}.`,
       };
     }
-    return { ok: true, proposal };
+    return { ok: true, proposal: record.proposal, state: record.state };
   }
 }
