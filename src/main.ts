@@ -18,9 +18,9 @@ import { validateWorkingDir } from "./executor.js";
 import type { DelegateResult } from "./delegation/types.js";
 import { buildDelegationPrompt } from "./delegation/promptBuilder.js";
 import { ProposalStore } from "./delegation/proposals.js";
+import { DelegationService } from "./delegation/service.js";
 import { classifyDelegationTool, extractCommandForPolicy } from "./delegation/toolPermissions.js";
 import {
-  runDelegationInIsolatedWorktree,
   verifyProposalApplyPreconditions,
   applyProposalPatch,
   cleanupProposalArtifacts,
@@ -267,6 +267,19 @@ function trimSessionHistory(history: ChatCompletionMessageParam[]): void {
 const sessionManager = new SessionManager({ maxSessions: RUNTIME_CONFIG.maxSessions, systemPrompt: SYSTEM_PROMPT });
 const jobQueue = new JobQueue();
 const proposalStore = new ProposalStore();
+const delegationService = new DelegationService({
+  proposalStore,
+  validateWorkingDir,
+  runDelegate: (prompt, cwd) => delegateToClaude(prompt, cwd),
+  onProposalCreated: (proposal) => {
+    logProposalCreated(
+      proposal.id,
+      proposal.sessionId,
+      proposal.changedFiles.length,
+      proposal.expiresAt
+    );
+  },
+});
 const sessionTopics: string[] = [];
 
 initLogger();
@@ -296,52 +309,11 @@ async function delegateToClaudeWithReview(
   delegatePrompt: string,
   workingDir?: string
 ): Promise<DelegateResult> {
-  if (workingDir) {
-    const wdValidation = validateWorkingDir(workingDir);
-    if (!wdValidation.valid) throw new Error(wdValidation.error);
-  }
-
-  const result = await runDelegationInIsolatedWorktree({
+  return delegationService.delegateWithReview({
     sessionId,
-    prompt: delegatePrompt,
-    repoRoot: workingDir,
-    runDelegate: (prompt, cwd) => delegateToClaude(prompt, cwd),
+    delegatePrompt,
+    workingDir,
   });
-
-  if (result.proposal) {
-    const created = proposalStore.createProposal(result.proposal);
-    if (!created.ok) {
-      cleanupProposalArtifacts(result.proposal);
-      throw new Error(created.error || "Could not store delegated proposal.");
-    }
-
-    logProposalCreated(
-      result.proposal.id,
-      result.proposal.sessionId,
-      result.proposal.changedFiles.length,
-      result.proposal.expiresAt
-    );
-
-    return {
-      exitCode: result.exitCode,
-      summary: result.summary,
-      proposal: {
-        id: result.proposal.id,
-        projectName: result.proposal.projectName,
-        expiresAt: result.proposal.expiresAt,
-        changedFiles: result.proposal.changedFiles,
-        diffStat: result.proposal.diffStat,
-        diffPreview: result.proposal.diffPreview,
-        fileDiffs: result.proposal.fileDiffs,
-      },
-    };
-  }
-
-  return {
-    exitCode: result.exitCode,
-    summary: result.summary,
-    noChanges: result.noChanges,
-  };
 }
 
 async function processTurn(sessionId: string, channel: Channel, userInput: string, send: SendFn): Promise<void> {
