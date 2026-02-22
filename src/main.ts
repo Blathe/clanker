@@ -18,6 +18,7 @@ import { validateWorkingDir } from "./executor.js";
 import type { DelegateResult } from "./delegation/types.js";
 import { buildDelegationPrompt } from "./delegation/promptBuilder.js";
 import { ProposalStore } from "./delegation/proposals.js";
+import { FileProposalRepository } from "./delegation/repository.js";
 import { DelegationService } from "./delegation/service.js";
 import { classifyDelegationTool, extractCommandForPolicy } from "./delegation/toolPermissions.js";
 import {
@@ -266,7 +267,7 @@ function trimSessionHistory(history: ChatCompletionMessageParam[]): void {
 
 const sessionManager = new SessionManager({ maxSessions: RUNTIME_CONFIG.maxSessions, systemPrompt: SYSTEM_PROMPT });
 const jobQueue = new JobQueue();
-const proposalStore = new ProposalStore();
+const proposalStore = new ProposalStore(new FileProposalRepository());
 const delegationService = new DelegationService({
   proposalStore,
   validateWorkingDir,

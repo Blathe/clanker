@@ -4,6 +4,11 @@ import {
   transitionDelegationState,
   type DelegationState,
 } from "./stateMachine.js";
+import {
+  InMemoryProposalRepository,
+  type ProposalRepository,
+  type StoredProposalRecord,
+} from "./repository.js";
 
 export interface PendingProposal {
   id: string;
@@ -32,16 +37,15 @@ export interface ProposalResolutionResult {
   error?: string;
 }
 
-interface StoredProposalRecord {
-  proposal: PendingProposal;
-  state: DelegationState;
-}
-
 export class ProposalStore {
-  private bySession: Map<string, StoredProposalRecord> = new Map();
+  private readonly repository: ProposalRepository;
+
+  constructor(repository: ProposalRepository = new InMemoryProposalRepository()) {
+    this.repository = repository;
+  }
 
   createProposal(input: CreateProposalInput): ProposalResolutionResult {
-    const existing = this.bySession.get(input.sessionId);
+    const existing = this.repository.get(input.sessionId);
     if (existing) {
       return {
         ok: false,
@@ -63,28 +67,24 @@ export class ProposalStore {
       return { ok: false, error: ready.error };
     }
 
-    this.bySession.set(input.sessionId, { proposal: input, state: ready.state });
+    this.repository.set({ proposal: input, state: ready.state });
     return { ok: true, proposal: input, state: ready.state };
   }
 
   getProposal(sessionId: string): PendingProposal | null {
-    return this.bySession.get(sessionId)?.proposal ?? null;
+    return this.repository.get(sessionId)?.proposal ?? null;
   }
 
   getState(sessionId: string): DelegationState | null {
-    return this.bySession.get(sessionId)?.state ?? null;
+    return this.repository.get(sessionId)?.state ?? null;
   }
 
   hasPending(sessionId: string): boolean {
-    return this.bySession.has(sessionId);
+    return this.repository.has(sessionId);
   }
 
   listPending(sessionId?: string): PendingProposal[] {
-    if (sessionId) {
-      const record = this.bySession.get(sessionId);
-      return record ? [record.proposal] : [];
-    }
-    return [...this.bySession.values()].map((record) => record.proposal);
+    return this.repository.list(sessionId).map((record) => record.proposal);
   }
 
   acceptProposal(sessionId: string, optionalId?: string, at: number = Date.now()): ProposalResolutionResult {
@@ -100,7 +100,7 @@ export class ProposalStore {
       return { ok: false, error: transitioned.error };
     }
 
-    this.bySession.delete(sessionId);
+    this.repository.delete(sessionId);
     return { ok: true, proposal: resolved.proposal, state: transitioned.state };
   }
 
@@ -117,13 +117,14 @@ export class ProposalStore {
       return { ok: false, error: transitioned.error };
     }
 
-    this.bySession.delete(sessionId);
+    this.repository.delete(sessionId);
     return { ok: true, proposal: resolved.proposal, state: transitioned.state };
   }
 
   expireStale(now: number = Date.now()): PendingProposal[] {
     const expired: PendingProposal[] = [];
-    for (const [sessionId, record] of this.bySession.entries()) {
+    for (const record of this.repository.list()) {
+      const sessionId = record.proposal.sessionId;
       if (record.proposal.expiresAt <= now) {
         const transitioned = transitionDelegationState(record.state, {
           type: "expire",
@@ -131,19 +132,19 @@ export class ProposalStore {
         });
         if (!transitioned.ok) {
           // Remove stale records even if state bookkeeping was already terminal.
-          this.bySession.delete(sessionId);
+          this.repository.delete(sessionId);
           expired.push(record.proposal);
           continue;
         }
         expired.push(record.proposal);
-        this.bySession.delete(sessionId);
+        this.repository.delete(sessionId);
       }
     }
     return expired;
   }
 
   private resolve(sessionId: string, optionalId?: string): ProposalResolutionResult {
-    const record = this.bySession.get(sessionId);
+    const record = this.repository.get(sessionId);
     if (!record) {
       return {
         ok: false,
