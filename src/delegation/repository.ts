@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { PendingProposal } from "./proposals.js";
 import type { DelegationState } from "./stateMachine.js";
@@ -55,6 +55,8 @@ export interface FileProposalRepositoryOptions {
   writeTextFile?: (path: string, text: string) => void;
   renamePath?: (from: string, to: string) => void;
   mkdirDir?: (path: string) => void;
+  pathExists?: (path: string) => boolean;
+  now?: () => number;
 }
 
 export class FileProposalRepository implements ProposalRepository {
@@ -64,6 +66,8 @@ export class FileProposalRepository implements ProposalRepository {
   private readonly writeTextFile: (path: string, text: string) => void;
   private readonly renamePath: (from: string, to: string) => void;
   private readonly mkdirDir: (path: string) => void;
+  private readonly pathExists: (path: string) => boolean;
+  private readonly now: () => number;
 
   constructor(options: FileProposalRepositoryOptions = {}) {
     this.filePath = options.filePath ?? join(process.cwd(), "sessions", "proposals.json");
@@ -71,6 +75,8 @@ export class FileProposalRepository implements ProposalRepository {
     this.writeTextFile = options.writeTextFile ?? ((path, text) => writeFileSync(path, text, "utf8"));
     this.renamePath = options.renamePath ?? ((from, to) => renameSync(from, to));
     this.mkdirDir = options.mkdirDir ?? ((path) => mkdirSync(path, { recursive: true }));
+    this.pathExists = options.pathExists ?? ((path) => existsSync(path));
+    this.now = options.now ?? (() => Date.now());
     this.bySession = this.load();
   }
 
@@ -114,9 +120,10 @@ export class FileProposalRepository implements ProposalRepository {
       const map = new Map<string, StoredProposalRecord>();
       for (const record of records) {
         const sessionId = record?.proposal?.sessionId;
-        if (typeof sessionId === "string" && sessionId.length > 0) {
-          map.set(sessionId, record);
-        }
+        if (typeof sessionId !== "string" || sessionId.length === 0) continue;
+        if (record.proposal.expiresAt <= this.now()) continue;
+        if (!record.proposal.patchPath || !this.pathExists(record.proposal.patchPath)) continue;
+        map.set(sessionId, record);
       }
       return map;
     } catch {

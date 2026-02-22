@@ -13,7 +13,7 @@ function sampleRecord(overrides: Partial<StoredProposalRecord> = {}): StoredProp
       id: "p-1",
       sessionId: "s-1",
       createdAt: 1000,
-      expiresAt: 2000,
+      expiresAt: 9_999_999_999_999,
       projectName: "repo",
       repoRoot: "/repo",
       baseHead: "abc123",
@@ -58,8 +58,15 @@ describe("proposal repositories", () => {
   test("file repository persists records across instances", () => {
     const dir = mkdtempSync(join(tmpdir(), "clanker-proposals-"));
     const filePath = join(dir, "proposals.json");
+    const patchPath = join(dir, "proposal.patch");
+    writeFileSync(patchPath, "diff --git", "utf8");
 
-    const record = sampleRecord();
+    const record = sampleRecord({
+      proposal: {
+        ...sampleRecord().proposal,
+        patchPath,
+      },
+    });
     const first = new FileProposalRepository({ filePath });
     first.set(record);
 
@@ -110,5 +117,53 @@ describe("proposal repositories", () => {
     expect(writes[0].path.endsWith(".tmp")).toBe(true);
     expect(renames).toEqual([{ from: writes[0].path, to: filePath }]);
     expect(mkdirs).toContain(dir);
+  });
+
+  test("file repository skips expired records on load", () => {
+    const dir = mkdtempSync(join(tmpdir(), "clanker-proposals-"));
+    const filePath = join(dir, "proposals.json");
+    const expired = sampleRecord({
+      proposal: {
+        ...sampleRecord().proposal,
+        expiresAt: 100,
+      },
+    });
+    writeFileSync(
+      filePath,
+      JSON.stringify({ version: 1, records: [expired] }),
+      "utf8"
+    );
+
+    const repo = new FileProposalRepository({
+      filePath,
+      pathExists: () => true,
+      now: () => 200,
+    });
+
+    expect(repo.list()).toEqual([]);
+  });
+
+  test("file repository skips records with missing patch artifacts on load", () => {
+    const dir = mkdtempSync(join(tmpdir(), "clanker-proposals-"));
+    const filePath = join(dir, "proposals.json");
+    const record = sampleRecord({
+      proposal: {
+        ...sampleRecord().proposal,
+        patchPath: "/tmp/missing.patch",
+      },
+    });
+    writeFileSync(
+      filePath,
+      JSON.stringify({ version: 1, records: [record] }),
+      "utf8"
+    );
+
+    const repo = new FileProposalRepository({
+      filePath,
+      now: () => 50,
+      pathExists: () => false,
+    });
+
+    expect(repo.list()).toEqual([]);
   });
 });

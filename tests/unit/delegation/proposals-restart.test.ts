@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { FileProposalRepository } from "../../../src/delegation/repository.js";
@@ -9,12 +9,12 @@ function sampleProposal() {
     id: "p-1",
     sessionId: "s-1",
     createdAt: 1_700_000_000_000,
-    expiresAt: 1_700_000_900_000,
+    expiresAt: 9_999_999_999_999,
     projectName: "repo",
     repoRoot: "/repo",
     baseHead: "abc123",
     worktreePath: "/tmp/wt-1",
-    patchPath: "/tmp/p-1.patch",
+      patchPath: "/tmp/p-1.patch",
     changedFiles: ["src/a.ts"],
     diffStat: " src/a.ts | 2 +-",
     diffPreview: "diff --git a/src/a.ts b/src/a.ts",
@@ -34,9 +34,14 @@ describe("ProposalStore restart recovery", () => {
   test("loads persisted pending proposal and allows acceptance after restart", () => {
     const dir = mkdtempSync(join(tmpdir(), "clanker-proposals-"));
     const filePath = join(dir, "proposals.json");
+    const patchPath = join(dir, "proposal.patch");
+    writeFileSync(patchPath, "diff --git", "utf8");
 
     const firstStore = new ProposalStore(new FileProposalRepository({ filePath }));
-    const created = firstStore.createProposal(sampleProposal());
+    const created = firstStore.createProposal({
+      ...sampleProposal(),
+      patchPath,
+    });
     expect(created.ok).toBe(true);
 
     const secondStore = new ProposalStore(new FileProposalRepository({ filePath }));
