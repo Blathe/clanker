@@ -35,6 +35,7 @@ import {
   logLLMResponse,
   logSessionSummary,
   logSessionEnd,
+  logDelegationRunState,
   logProposalCreated,
   logProposalAccepted,
   logProposalRejected,
@@ -272,6 +273,12 @@ const delegationService = new DelegationService({
   proposalStore,
   validateWorkingDir,
   runDelegate: (prompt, cwd) => delegateToClaude(prompt, cwd),
+  onStateTransition: (event) => {
+    logDelegationRunState(event.runId, event.sessionId, event.state, {
+      proposalId: event.proposalId,
+      error: event.error,
+    });
+  },
   onProposalCreated: (proposal) => {
     logProposalCreated(
       proposal.id,
@@ -308,12 +315,14 @@ function expireStaleProposals(now = Date.now()): void {
 async function delegateToClaudeWithReview(
   sessionId: string,
   delegatePrompt: string,
-  workingDir?: string
+  workingDir?: string,
+  runId?: string
 ): Promise<DelegateResult> {
   return delegationService.delegateWithReview({
     sessionId,
     delegatePrompt,
     workingDir,
+    runId,
   });
 }
 
@@ -394,9 +403,11 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
           return { status: "pending", proposalId: existing.id };
         }
 
+        const delegationRunId = randomUUID();
         const queued = jobQueue.enqueue(
-          { id: randomUUID(), sessionId, prompt, send: sendFn, history, trimHistory: () => trimSessionHistory(state.history) },
-          (delegatePrompt: string) => delegateToClaudeWithReview(sessionId, delegatePrompt, workingDir)
+          { id: delegationRunId, sessionId, prompt, send: sendFn, history, trimHistory: () => trimSessionHistory(state.history) },
+          (delegatePrompt: string) =>
+            delegateToClaudeWithReview(sessionId, delegatePrompt, workingDir, delegationRunId)
         );
         return queued ? { status: "queued" } : { status: "full" };
       };

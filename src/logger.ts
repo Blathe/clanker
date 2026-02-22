@@ -161,6 +161,24 @@ export function logDelegate(exitCode: number, summaryLen: number): void {
   write({ t: ts(), ev: "delegate", exit: exitCode, sumLen: summaryLen });
 }
 
+export function logDelegationRunState(
+  runId: string,
+  sessionId: string,
+  state: "started" | "proposal_ready" | "no_changes" | "completed" | "failed",
+  details?: { proposalId?: string; error?: string }
+): void {
+  const limits = getLimits();
+  write({
+    t: ts(),
+    ev: "delegate-run",
+    run: runId,
+    session: sessionId,
+    state,
+    ...(details?.proposalId ? { proposal: details.proposalId } : {}),
+    ...(details?.error ? { error: trunc(details.error, limits.maxMsg) } : {}),
+  });
+}
+
 export function logProposalCreated(
   proposalId: string,
   sessionId: string,
