@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import type { PendingProposal } from "./proposals.js";
 import type { DelegationState } from "./stateMachine.js";
@@ -49,6 +58,24 @@ interface FileRepositoryPayload {
   records: StoredProposalRecord[];
 }
 
+type LockRelease = () => void;
+
+function acquireFileLock(lockPath: string): LockRelease {
+  const fd = openSync(lockPath, "wx");
+  return () => {
+    try {
+      closeSync(fd);
+    } catch {
+      // no-op
+    }
+    try {
+      unlinkSync(lockPath);
+    } catch {
+      // no-op
+    }
+  };
+}
+
 export interface FileProposalRepositoryOptions {
   filePath?: string;
   readTextFile?: (path: string) => string;
@@ -57,6 +84,7 @@ export interface FileProposalRepositoryOptions {
   mkdirDir?: (path: string) => void;
   pathExists?: (path: string) => boolean;
   now?: () => number;
+  acquireLock?: (lockPath: string) => LockRelease;
 }
 
 export class FileProposalRepository implements ProposalRepository {
@@ -68,6 +96,7 @@ export class FileProposalRepository implements ProposalRepository {
   private readonly mkdirDir: (path: string) => void;
   private readonly pathExists: (path: string) => boolean;
   private readonly now: () => number;
+  private readonly acquireLock: (lockPath: string) => LockRelease;
 
   constructor(options: FileProposalRepositoryOptions = {}) {
     this.filePath = options.filePath ?? join(process.cwd(), "sessions", "proposals.json");
@@ -77,6 +106,7 @@ export class FileProposalRepository implements ProposalRepository {
     this.mkdirDir = options.mkdirDir ?? ((path) => mkdirSync(path, { recursive: true }));
     this.pathExists = options.pathExists ?? ((path) => existsSync(path));
     this.now = options.now ?? (() => Date.now());
+    this.acquireLock = options.acquireLock ?? ((lockPath) => acquireFileLock(lockPath));
     this.bySession = this.load();
   }
 
@@ -132,13 +162,18 @@ export class FileProposalRepository implements ProposalRepository {
   }
 
   private persist(): void {
-    this.mkdirDir(dirname(this.filePath));
-    const payload: FileRepositoryPayload = {
-      version: 1,
-      records: [...this.bySession.values()],
-    };
-    const tmpPath = `${this.filePath}.tmp`;
-    this.writeTextFile(tmpPath, JSON.stringify(payload, null, 2));
-    this.renamePath(tmpPath, this.filePath);
+    const releaseLock = this.acquireLock(`${this.filePath}.lock`);
+    try {
+      this.mkdirDir(dirname(this.filePath));
+      const payload: FileRepositoryPayload = {
+        version: 1,
+        records: [...this.bySession.values()],
+      };
+      const tmpPath = `${this.filePath}.tmp`;
+      this.writeTextFile(tmpPath, JSON.stringify(payload, null, 2));
+      this.renamePath(tmpPath, this.filePath);
+    } finally {
+      releaseLock();
+    }
   }
 }

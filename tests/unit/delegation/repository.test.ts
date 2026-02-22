@@ -166,4 +166,58 @@ describe("proposal repositories", () => {
 
     expect(repo.list()).toEqual([]);
   });
+
+  test("file repository acquires and releases lock during persist", () => {
+    const dir = mkdtempSync(join(tmpdir(), "clanker-proposals-"));
+    const filePath = join(dir, "proposals.json");
+    const calls: string[] = [];
+    const releases: string[] = [];
+
+    const repo = new FileProposalRepository({
+      filePath,
+      readTextFile: () => {
+        throw new Error("not found");
+      },
+      writeTextFile: () => undefined,
+      renamePath: () => undefined,
+      mkdirDir: () => undefined,
+      acquireLock: (path) => {
+        calls.push(path);
+        return () => {
+          releases.push(path);
+        };
+      },
+    });
+
+    repo.set(sampleRecord());
+
+    expect(calls).toEqual([`${filePath}.lock`]);
+    expect(releases).toEqual([`${filePath}.lock`]);
+  });
+
+  test("file repository releases lock when persist fails", () => {
+    const dir = mkdtempSync(join(tmpdir(), "clanker-proposals-"));
+    const filePath = join(dir, "proposals.json");
+    let released = false;
+
+    const repo = new FileProposalRepository({
+      filePath,
+      readTextFile: () => {
+        throw new Error("not found");
+      },
+      writeTextFile: () => undefined,
+      renamePath: () => {
+        throw new Error("rename failed");
+      },
+      mkdirDir: () => undefined,
+      acquireLock: () => {
+        return () => {
+          released = true;
+        };
+      },
+    });
+
+    expect(() => repo.set(sampleRecord())).toThrow("rename failed");
+    expect(released).toBe(true);
+  });
 });
