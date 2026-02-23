@@ -1,12 +1,11 @@
 import { appendFileSync, mkdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import type { LLMResponse, PolicyVerdict, ExecutionResult } from "./types.js";
 import type { EditResult } from "./executor.js";
 import { getRuntimeConfig } from "./runtimeConfig.js";
+import { DIRS } from "./paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const SESSIONS_DIR = join(__dirname, "..", "audit");
+const SESSIONS_DIR = join(process.cwd(), DIRS.audit);
 
 let sessionFile: string | null = null;
 let pendingVersion: string | null = null;

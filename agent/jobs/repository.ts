@@ -1,6 +1,7 @@
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { JobStatus } from "./stateMachine.js";
+import { DIRS } from "../paths.js";
 
 export interface JobSummaryInput {
   jobId: string;
@@ -73,7 +74,7 @@ export class FileJobRepository {
 
   writeSummary(input: JobSummaryInput): JobSummaryWriteResult {
     const { year, month } = monthPathParts(input.createdAtIso);
-    const dirPath = join(this.rootDir, "jobs", year, month);
+    const dirPath = join(this.rootDir, DIRS.jobs, year, month);
     const filePath = join(dirPath, `${input.jobId}.md`);
     const content = toMarkdown(input);
 

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import type { PolicyConfig, PolicyRule, PolicyVerdict } from "./types.js";
+import { FILES } from "./paths.js";
 
 const PolicyRuleSchema = z.object({
   id: z.string().min(1),
@@ -18,7 +19,7 @@ const PolicyConfigSchema = z.object({
 });
 
 function loadPolicy(): PolicyConfig {
-  const policyPath = join(process.cwd(), "policies", "policy.json");
+  const policyPath = join(process.cwd(), FILES.policy);
   const raw = readFileSync(policyPath, "utf8");
   return PolicyConfigSchema.parse(JSON.parse(raw));
 }

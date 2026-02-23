@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { PROMPT_PATHS } from "../paths.js";
 
 export interface PromptTemplates {
   systemCore: string;
@@ -7,13 +8,6 @@ export interface PromptTemplates {
   routing: string;
   delegationTemplate: string;
 }
-
-const PROMPT_PATHS = {
-  systemCore: join("config", "prompts", "system", "core.md"),
-  actionContract: join("config", "prompts", "system", "action-contract.md"),
-  routing: join("config", "prompts", "system", "routing.md"),
-  delegationTemplate: join("config", "prompts", "delegation", "template.md"),
-} as const;
 
 function readRequiredPrompt(baseDir: string, relativePath: string): string {
   const fullPath = join(baseDir, relativePath);

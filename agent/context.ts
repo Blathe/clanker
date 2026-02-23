@@ -4,6 +4,7 @@ import {
   composeSystemPromptFromTemplates,
   loadPromptTemplates,
 } from "./prompt/loadPrompts.js";
+import { DIRS, FILES } from "./paths.js";
 
 /**
  * Validates that a filename matches the expected session file format
@@ -29,7 +30,7 @@ function extractSessionTimestamp(filename: string): string | null {
 }
 
 function loadSoul(): string {
-  const soulPath = join(process.cwd(), "config", "SOUL.md");
+  const soulPath = join(process.cwd(), FILES.soul);
   if (existsSync(soulPath)) {
     return readFileSync(soulPath, "utf8").trim() + "\n\n";
   }
@@ -37,7 +38,7 @@ function loadSoul(): string {
 }
 
 function loadMemory(): string {
-  const memoryPath = join(process.cwd(), "memory", "MEMORY.md");
+  const memoryPath = join(process.cwd(), FILES.memory);
   if (existsSync(memoryPath)) {
     return "## Persistent Memory\n\n" + readFileSync(memoryPath, "utf8").trim() + "\n\n";
   }
@@ -45,7 +46,7 @@ function loadMemory(): string {
 }
 
 export function loadLastSession(sessionsDir?: string): string {
-  if (!sessionsDir) sessionsDir = join(process.cwd(), "audit");
+  if (!sessionsDir) sessionsDir = join(process.cwd(), DIRS.audit);
   if (!existsSync(sessionsDir)) return "";
 
   let files: string[];

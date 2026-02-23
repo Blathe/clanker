@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { DIRS } from "../paths.js";
 
 export interface AuditEventInput {
   jobId: string;
@@ -45,7 +46,7 @@ export class AuditWriter {
 
   appendEvent(input: AuditEventInput): AuditAppendResult {
     const { year, month, unixSeconds } = monthPathParts(input.atIso);
-    const dirPath = join(this.rootDir, "audit", year, month);
+    const dirPath = join(this.rootDir, DIRS.audit, year, month);
     const filePath = join(dirPath, `${input.jobId}.jsonl`);
 
     this.mkdirDir(dirPath);
