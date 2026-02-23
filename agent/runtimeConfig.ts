@@ -1,8 +1,11 @@
 type EnvMap = Record<string, string | undefined>;
 
 export interface RuntimeConfig {
-  openAiModel: string;
-  openAiMaxTokens: number;
+  // TODO: multi-provider — currently only "openai" is implemented.
+  // CLANKER_CHAT_PROVIDER will gate provider-specific init when Anthropic support is added.
+  chatProvider: string;
+  chatModel: string;
+  chatMaxTokens: number;
   maxHistory: number;
   maxSessions: number;
   maxUserInput: number;
@@ -23,7 +26,7 @@ interface NumericOverride {
 }
 
 const NUMERIC_OVERRIDES: NumericOverride[] = [
-  { name: "CLANKER_OPENAI_MAX_TOKENS", defaultValue: 1024, min: 1 },
+  { name: "CLANKER_CHAT_MAX_TOKENS", defaultValue: 1024, min: 1 },
   { name: "CLANKER_MAX_HISTORY", defaultValue: 50, min: 1 },
   { name: "CLANKER_MAX_SESSIONS", defaultValue: 100, min: 1 },
   { name: "CLANKER_MAX_USER_INPUT", defaultValue: 8000, min: 1 },
@@ -36,6 +39,8 @@ const NUMERIC_OVERRIDES: NumericOverride[] = [
   { name: "CLANKER_DISPATCH_POLL_INTERVAL_MS", defaultValue: 30000, min: 1 },
   { name: "CLANKER_DISPATCH_POLL_TIMEOUT_MS", defaultValue: 1800000, min: 1 },
 ];
+
+const SUPPORTED_PROVIDERS = ["openai"] as const;
 
 function parsePositiveInteger(
   env: EnvMap,
@@ -68,9 +73,16 @@ export function validateRuntimeConfigEnv(
 ): string[] {
   const errors: string[] = [];
 
-  const modelRaw = env.CLANKER_OPENAI_MODEL;
+  const providerRaw = env.CLANKER_CHAT_PROVIDER;
+  if (providerRaw !== undefined && providerRaw.trim() === "") {
+    errors.push("CLANKER_CHAT_PROVIDER cannot be empty when set.");
+  } else if (providerRaw !== undefined && !(SUPPORTED_PROVIDERS as readonly string[]).includes(providerRaw.trim())) {
+    errors.push(`CLANKER_CHAT_PROVIDER must be one of: ${SUPPORTED_PROVIDERS.join(", ")} (received: "${providerRaw}").`);
+  }
+
+  const modelRaw = env.CLANKER_CHAT_MODEL;
   if (modelRaw !== undefined && modelRaw.trim() === "") {
-    errors.push("CLANKER_OPENAI_MODEL cannot be empty when set.");
+    errors.push("CLANKER_CHAT_MODEL cannot be empty when set.");
   }
 
   for (const override of NUMERIC_OVERRIDES) {
@@ -104,11 +116,10 @@ export function buildRuntimeConfig(
     values.set(override.name, parsePositiveInteger(env, override).value);
   }
 
-  const model = env.CLANKER_OPENAI_MODEL?.trim() || "gpt-4o";
-
   return {
-    openAiModel: model,
-    openAiMaxTokens: getRequired(values, "CLANKER_OPENAI_MAX_TOKENS"),
+    chatProvider: env.CLANKER_CHAT_PROVIDER?.trim() || "openai",
+    chatModel: env.CLANKER_CHAT_MODEL?.trim() || "gpt-4o",
+    chatMaxTokens: getRequired(values, "CLANKER_CHAT_MAX_TOKENS"),
     maxHistory: getRequired(values, "CLANKER_MAX_HISTORY"),
     maxSessions: getRequired(values, "CLANKER_MAX_SESSIONS"),
     maxUserInput: getRequired(values, "CLANKER_MAX_USER_INPUT"),

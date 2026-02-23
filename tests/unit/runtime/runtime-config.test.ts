@@ -3,8 +3,8 @@ import { buildRuntimeConfig, validateRuntimeConfigEnv } from "../../../agent/run
 describe("runtimeConfig", () => {
   test("buildRuntimeConfig returns defaults when no overrides are set", () => {
     const cfg = buildRuntimeConfig({});
-    expect(cfg.openAiModel).toBe("gpt-4o");
-    expect(cfg.openAiMaxTokens).toBe(1024);
+    expect(cfg.chatModel).toBe("gpt-4o");
+    expect(cfg.chatMaxTokens).toBe(1024);
     expect(cfg.maxHistory).toBe(50);
     expect(cfg.maxSessions).toBe(100);
     expect(cfg.maxUserInput).toBe(8000);
@@ -20,8 +20,8 @@ describe("runtimeConfig", () => {
 
   test("buildRuntimeConfig applies valid numeric overrides", () => {
     const cfg = buildRuntimeConfig({
-      CLANKER_OPENAI_MODEL: "gpt-4.1-mini",
-      CLANKER_OPENAI_MAX_TOKENS: "2048",
+      CLANKER_CHAT_MODEL: "gpt-4.1-mini",
+      CLANKER_CHAT_MAX_TOKENS: "2048",
       CLANKER_MAX_HISTORY: "60",
       CLANKER_MAX_SESSIONS: "120",
       CLANKER_MAX_USER_INPUT: "12000",
@@ -34,8 +34,8 @@ describe("runtimeConfig", () => {
       CLANKER_DISPATCH_POLL_TIMEOUT_MS: "3600000",
     });
 
-    expect(cfg.openAiModel).toBe("gpt-4.1-mini");
-    expect(cfg.openAiMaxTokens).toBe(2048);
+    expect(cfg.chatModel).toBe("gpt-4.1-mini");
+    expect(cfg.chatMaxTokens).toBe(2048);
     expect(cfg.maxHistory).toBe(60);
     expect(cfg.maxSessions).toBe(120);
     expect(cfg.maxUserInput).toBe(12000);
@@ -61,12 +61,12 @@ describe("runtimeConfig", () => {
     const errors = validateRuntimeConfigEnv({
       CLANKER_MAX_HISTORY: "nope",
       CLANKER_MAX_SESSIONS: "0",
-      CLANKER_OPENAI_MAX_TOKENS: "-5",
+      CLANKER_CHAT_MAX_TOKENS: "-5",
     });
 
     expect(errors.length).toBeGreaterThanOrEqual(3);
     expect(errors.join("\n")).toContain("CLANKER_MAX_HISTORY");
     expect(errors.join("\n")).toContain("CLANKER_MAX_SESSIONS");
-    expect(errors.join("\n")).toContain("CLANKER_OPENAI_MAX_TOKENS");
+    expect(errors.join("\n")).toContain("CLANKER_CHAT_MAX_TOKENS");
   });
 });

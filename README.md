@@ -185,7 +185,7 @@ Update the hash in `policy.json`:
 
 Optional `CLANKER_*` overrides for model and safety/performance limits:
 
-- `CLANKER_OPENAI_MODEL`, `CLANKER_OPENAI_MAX_TOKENS`
+- `CLANKER_CHAT_PROVIDER` (default: `openai`), `CLANKER_CHAT_MODEL` (default: `gpt-4o`), `CLANKER_CHAT_MAX_TOKENS`
 - `CLANKER_MAX_HISTORY`, `CLANKER_MAX_SESSIONS`, `CLANKER_MAX_USER_INPUT`
 - `CLANKER_MAX_COMMAND_LENGTH`, `CLANKER_MAX_OUTPUT_BYTES`, `CLANKER_MAX_ACTIONS_PER_TURN`
 - `CLANKER_DISPATCH_POLL_INTERVAL_MS` (default: 30000) — how often to poll for an opened PR

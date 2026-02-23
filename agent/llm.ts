@@ -78,8 +78,8 @@ export async function callLLM(
   const client = getClient();
   const runtimeConfig = getRuntimeConfig();
   const response = await client.chat.completions.create({
-    model: runtimeConfig.openAiModel,
-    max_tokens: runtimeConfig.openAiMaxTokens,
+    model: runtimeConfig.chatModel,
+    max_tokens: runtimeConfig.chatMaxTokens,
     response_format: { type: "json_object" },
     messages,
   });
