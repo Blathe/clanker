@@ -13,6 +13,7 @@ A security-focused TypeScript CLI agent that runs interactive chat over local RE
 - **Multi-Transport Chat** — Run local REPL and Discord bot transport in the same process
 - **Passphrase Protection** — Sensitive operations (writes, moves, etc.) require authentication
 - **Async Job Queue** — Long-running delegation tasks execute in background without blocking sessions
+- **Job Orchestration Mode (Optional)** — Routes chat requests into async jobs with audit/job artifacts
 - **Claude Delegation Review Gate (Optional)** — Delegated tasks run in isolated worktrees and return accept/reject diff proposals
 - **Git Support** — Execute git commands (status, log, diff, add, commit, fetch, etc.) while blocking destructive operations
 - **Environment Doctor** — Validate your configuration before startup with `npm run doctor`
@@ -111,6 +112,8 @@ npm start -- --version
 4. **Execution** — Approved commands run via bash; blocked commands are rejected
 5. **Response** — Clanker sees the result and continues the conversation
 
+By default, requests are accepted as async jobs and status updates are reported back in chat. In this mode, direct `command`/`edit` execution paths are disabled. Set `CLANKER_ENABLE_JOB_ORCHESTRATION=0` to temporarily opt out.
+
 ### Action Types
 
 The agent responds in one of four structured formats:
@@ -141,6 +144,7 @@ Rules are evaluated in order; first match wins. Default action is **block**.
 | `CLANKER_TRANSPORTS` | Comma-separated transports: `repl`, `discord`, or both |
 | `ENABLE_CLAUDE_DELEGATE` | Enables delegate actions that invoke the `claude` CLI |
 | `DISCORD_UNSAFE_ENABLE_WRITES` | Allows Discord-triggered write/delegate actions (unsafe) |
+| `CLANKER_ENABLE_JOB_ORCHESTRATION` | Defaults to enabled; set to `0` to opt out to legacy direct command/edit path |
 | `SHELL_BIN` | Optional shell path override used by command execution |
 
 ### Runtime Tuning Overrides

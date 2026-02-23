@@ -44,6 +44,7 @@ function makeCtx(response: LLMResponse, overrides: Record<string, unknown> = {})
     history,
     discordUnsafeEnableWrites: false,
     delegateEnabled: false,
+    jobOrchestrationEnabled: false,
     promptSecret: jest.fn<() => Promise<string>>().mockResolvedValue("mypassphrase"),
     delegateToClaude: jest.fn<() => Promise<any>>().mockResolvedValue({ exitCode: 0, summary: "done" }),
     queueDelegate: undefined,

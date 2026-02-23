@@ -9,3 +9,5 @@ To delegate a complex programming task to Claude:
 
 To reply with text only:
 { "type": "message", "explanation": "<your response>" }
+
+Note: In default job orchestration mode, direct `command` and `edit` actions are disabled. Use `message` responses that acknowledge asynchronous job processing status.

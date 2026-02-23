@@ -42,6 +42,8 @@ function main(): void {
   const allowedChannels = parseDiscordIdCsv("DISCORD_ALLOWED_CHANNEL_IDS");
   const discordUnsafeWrites = parseBoolFlag("DISCORD_UNSAFE_ENABLE_WRITES");
   const delegateEnabled = parseBoolFlag("ENABLE_CLAUDE_DELEGATE");
+  const jobOrchestrationRaw = getEnv("CLANKER_ENABLE_JOB_ORCHESTRATION");
+  const jobOrchestrationEnabled = parseBoolFlag("CLANKER_ENABLE_JOB_ORCHESTRATION");
   const transports = parseTransportsDetailed("CLANKER_TRANSPORTS");
 
   if (allowedUsers.invalid.length > 0) {
@@ -86,6 +88,17 @@ function main(): void {
     printOk("ENABLE_CLAUDE_DELEGATE is enabled.");
   } else {
     printWarn("ENABLE_CLAUDE_DELEGATE is disabled. Delegate actions will be blocked.");
+  }
+
+  if (jobOrchestrationRaw === undefined) {
+    printOk("CLANKER_ENABLE_JOB_ORCHESTRATION is not set; defaulting to enabled.");
+  } else if (!jobOrchestrationEnabled.valid) {
+    printFail("CLANKER_ENABLE_JOB_ORCHESTRATION must be one of: 1,true,yes,on,0,false,no,off.");
+    hasFailure = true;
+  } else if (jobOrchestrationEnabled.enabled) {
+    printOk("CLANKER_ENABLE_JOB_ORCHESTRATION is enabled.");
+  } else {
+    printWarn("CLANKER_ENABLE_JOB_ORCHESTRATION is disabled. Legacy turn action flow remains active.");
   }
 
   if (transports.invalid.length > 0) {

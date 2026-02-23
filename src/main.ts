@@ -12,7 +12,7 @@ import { runReplTransport } from "./transports/repl.js";
 import type { Channel, SendFn } from "./runtime.js";
 import { handleTurnAction, type QueueDelegateResult } from "./turnHandlers.js";
 import { JobQueue } from "./queue.js";
-import { envFlagEnabled, parseTransportsDetailed } from "./config.js";
+import { envFlagEnabled, getEnv, parseTransportsDetailed } from "./config.js";
 import { evaluate } from "./policy.js";
 import { validateWorkingDir } from "./executor.js";
 import type { DelegateResult } from "./delegation/types.js";
@@ -21,6 +21,12 @@ import { ProposalStore } from "./delegation/proposals.js";
 import { FileProposalRepository } from "./delegation/repository.js";
 import { DelegationService } from "./delegation/service.js";
 import { classifyDelegationTool, extractCommandForPolicy } from "./delegation/toolPermissions.js";
+import { InMemoryGitHubAdapter } from "./github/adapter.js";
+import { JobPrOrchestrator } from "./github/prOrchestrator.js";
+import { AuditWriter } from "./jobs/auditWriter.js";
+import { FileJobRepository } from "./jobs/repository.js";
+import { JobService as OrchestratedJobService } from "./jobs/service.js";
+import { AsyncJobSubmitter } from "./jobs/submitter.js";
 import {
   verifyProposalApplyPreconditions,
   applyProposalPatch,
@@ -221,6 +227,9 @@ async function delegateToClaude(delegatePrompt: string, cwd?: string): Promise<D
 
 const DISCORD_UNSAFE_ENABLE_WRITES = envFlagEnabled("DISCORD_UNSAFE_ENABLE_WRITES");
 const ENABLE_CLAUDE_DELEGATE = envFlagEnabled("ENABLE_CLAUDE_DELEGATE");
+const ENABLE_JOB_ORCHESTRATION = getEnv("CLANKER_ENABLE_JOB_ORCHESTRATION")
+  ? envFlagEnabled("CLANKER_ENABLE_JOB_ORCHESTRATION")
+  : true;
 const TRANSPORTS = parseTransportsDetailed("CLANKER_TRANSPORTS");
 const RUNTIME_CONFIG = getRuntimeConfig();
 const REPL_INTERACTIVE_AVAILABLE = TRANSPORTS.repl && Boolean(process.stdin.isTTY && process.stdout.isTTY);
@@ -268,6 +277,22 @@ function trimSessionHistory(history: ChatCompletionMessageParam[]): void {
 
 const sessionManager = new SessionManager({ maxSessions: RUNTIME_CONFIG.maxSessions, systemPrompt: SYSTEM_PROMPT });
 const jobQueue = new JobQueue();
+const orchestratedJobService = new OrchestratedJobService();
+const jobRepository = new FileJobRepository({ rootDir: process.cwd() });
+const auditWriter = new AuditWriter({ rootDir: process.cwd() });
+const githubAdapter = new InMemoryGitHubAdapter({
+  owner: "local",
+  repo: "clanker",
+  defaultBranch: "main",
+  initialFiles: {},
+});
+const jobPrOrchestrator = new JobPrOrchestrator({ adapter: githubAdapter });
+const asyncJobSubmitter = new AsyncJobSubmitter({
+  service: orchestratedJobService,
+  jobRepository,
+  auditWriter,
+  prOrchestrator: jobPrOrchestrator,
+});
 const proposalStore = new ProposalStore(new FileProposalRepository());
 const delegationService = new DelegationService({
   proposalStore,
@@ -365,6 +390,18 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
       return;
     }
 
+    if (ENABLE_JOB_ORCHESTRATION) {
+      await asyncJobSubmitter.submit({
+        sessionId,
+        channel,
+        userInput,
+        send,
+      });
+      addTopic(channel, userInput);
+      trimSessionHistory(state.history);
+      return;
+    }
+
     let safetyCounter = 0;
     let broke = false;
     while (safetyCounter < RUNTIME_CONFIG.maxActionsPerTurn) {
@@ -414,6 +451,7 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
         history: state.history,
         discordUnsafeEnableWrites: DISCORD_UNSAFE_ENABLE_WRITES,
         delegateEnabled: ENABLE_CLAUDE_DELEGATE,
+        jobOrchestrationEnabled: ENABLE_JOB_ORCHESTRATION,
         promptSecret,
         delegateToClaude: (prompt, workingDir) =>
           delegateToClaudeWithReview(sessionId, prompt, workingDir),
@@ -456,6 +494,9 @@ function printStartupBanner(): void {
   }
   if (DISCORD_UNSAFE_ENABLE_WRITES) {
     console.log("WARNING: DISCORD_UNSAFE_ENABLE_WRITES is enabled. Discord can trigger write actions.");
+  }
+  if (ENABLE_JOB_ORCHESTRATION) {
+    console.log("Job orchestration mode is enabled (CLANKER_ENABLE_JOB_ORCHESTRATION=1).");
   }
   if (REPL_INTERACTIVE_AVAILABLE) {
     console.log("Type /help for local REPL slash commands.\n");

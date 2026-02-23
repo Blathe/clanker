@@ -27,6 +27,7 @@ interface TurnActionContext {
   history: ChatCompletionMessageParam[];
   discordUnsafeEnableWrites: boolean;
   delegateEnabled: boolean;
+  jobOrchestrationEnabled?: boolean;
   promptSecret: (question: string) => Promise<string>;
   delegateToClaude: (delegatePrompt: string, workingDir?: string) => Promise<DelegateResult>;
   queueDelegate?: (
@@ -39,6 +40,10 @@ interface TurnActionContext {
 
 function pushUserHistory(history: ChatCompletionMessageParam[], content: string): void {
   history.push({ role: "user", content });
+}
+
+function orchestrationEnabled(ctx: TurnActionContext): boolean {
+  return ctx.jobOrchestrationEnabled !== false;
 }
 
 async function handleMessageAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
@@ -103,6 +108,12 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
 async function handleEditAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
   if (ctx.response.type !== "edit") return "continue";
 
+  if (orchestrationEnabled(ctx)) {
+    await ctx.send("Direct edit actions are disabled in job orchestration mode.");
+    pushUserHistory(ctx.history, "Edit action blocked: legacy direct edit path disabled.");
+    return "break";
+  }
+
   if (ctx.channel === "discord" && !ctx.discordUnsafeEnableWrites) {
     pushUserHistory(
       ctx.history,
@@ -140,6 +151,12 @@ async function handleEditAction(ctx: TurnActionContext): Promise<TurnActionOutco
 
 async function handleCommandAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
   if (ctx.response.type !== "command") return "continue";
+
+  if (orchestrationEnabled(ctx)) {
+    await ctx.send("Direct command execution is disabled in job orchestration mode.");
+    pushUserHistory(ctx.history, "Command action blocked: legacy direct command path disabled.");
+    return "break";
+  }
 
   // Validate command length before policy evaluation
   const lengthValidation = validateCommandLength(ctx.response.command);
