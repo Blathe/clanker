@@ -66,7 +66,3 @@ export function parseTransportsDetailed(name: string): ParsedTransports {
   };
 }
 
-export function parseTransports(name: string): TransportConfig {
-  const parsed = parseTransportsDetailed(name);
-  return { repl: parsed.repl, discord: parsed.discord };
-}
