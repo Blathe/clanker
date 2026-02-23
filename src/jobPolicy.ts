@@ -28,13 +28,21 @@ function normalizePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+function isUnknownPath(normalized: string): boolean {
+  return (
+    !R3_PREFIXES.some((prefix) => normalized.startsWith(prefix)) &&
+    !R2_PREFIXES.some((prefix) => normalized.startsWith(prefix)) &&
+    !R1_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+  );
+}
+
 function classifyPathRisk(path: string): RiskLevel {
   const normalized = normalizePath(path);
-
   if (R3_PREFIXES.some((prefix) => normalized.startsWith(prefix))) return "R3";
   if (R2_PREFIXES.some((prefix) => normalized.startsWith(prefix))) return "R2";
   if (R1_PREFIXES.some((prefix) => normalized.startsWith(prefix))) return "R1";
-  return "R3";
+  // Unknown paths default to R1 (informational); sawUnknown flag is set in the caller.
+  return "R1";
 }
 
 function maxRisk(a: RiskLevel, b: RiskLevel): RiskLevel {
@@ -53,11 +61,7 @@ export function classifyJobRiskFromTouchedPaths(paths: string[]): RiskClassifica
     const normalized = normalizePath(path);
     const risk = classifyPathRisk(normalized);
     highest = maxRisk(highest, risk);
-
-    if (
-      risk === "R3" &&
-      !R3_PREFIXES.some((prefix) => normalized.startsWith(prefix))
-    ) {
+    if (isUnknownPath(normalized)) {
       sawUnknown = true;
     }
   }

@@ -1,10 +1,11 @@
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { JobStatus } from "./stateMachine.js";
 
 export interface JobSummaryInput {
   jobId: string;
   createdAtIso: string;
-  status: string;
+  status: JobStatus;
   summary: string;
   evidenceLinks: string[];
 }

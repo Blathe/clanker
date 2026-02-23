@@ -21,9 +21,10 @@ describe("job policy risk classification", () => {
     expect(risk.riskLevel).toBe("R3");
   });
 
-  test("treats unknown write locations as R3 by default", () => {
+  test("treats unknown write locations as R1 with sawUnknown flag in reasons", () => {
     const risk = classifyJobRiskFromTouchedPaths(["/src/random.ts"]);
-    expect(risk.riskLevel).toBe("R3");
+    expect(risk.riskLevel).toBe("R1");
+    expect(risk.reasons.some((r) => r.toLowerCase().includes("outside"))).toBe(true);
   });
 });
 

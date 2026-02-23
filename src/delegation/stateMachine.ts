@@ -1,3 +1,5 @@
+import { type TransitionResult, invalidTransition } from "../stateUtils.js";
+
 export type DelegationStatus =
   | "queued"
   | "running"
@@ -69,18 +71,7 @@ export type DelegationEvent =
   | { type: "reject"; at: number; proposalId?: string }
   | { type: "expire"; at: number };
 
-export type DelegationTransitionResult =
-  | { ok: true; state: DelegationState }
-  | { ok: false; error: string; state: DelegationState };
-
-function invalid(state: DelegationState, event: DelegationEvent, reason?: string): DelegationTransitionResult {
-  const suffix = reason ? `: ${reason}` : "";
-  return {
-    ok: false,
-    error: `Invalid delegation transition ${state.status} -> ${event.type}${suffix}`,
-    state,
-  };
-}
+export type DelegationTransitionResult = TransitionResult<DelegationState>;
 
 function proposalIdMatches(expected: string, provided?: string): boolean {
   return !provided || provided === expected;
@@ -107,7 +98,7 @@ export function transitionDelegationState(
   switch (state.status) {
     case "queued": {
       if (event.type !== "start") {
-        return invalid(state, event);
+        return invalidTransition(state, event);
       }
       return { ok: true, state: { status: "running", changedAt: event.at } };
     }
@@ -128,13 +119,13 @@ export function transitionDelegationState(
           state: { status: "failed", changedAt: event.at, error: event.error },
         };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
     }
 
     case "proposal_ready": {
       if (event.type === "accept") {
         if (!proposalIdMatches(state.proposalId, event.proposalId)) {
-          return invalid(state, event, "proposal id mismatch");
+          return invalidTransition(state, event, "proposal id mismatch");
         }
         return {
           ok: true,
@@ -143,7 +134,7 @@ export function transitionDelegationState(
       }
       if (event.type === "reject") {
         if (!proposalIdMatches(state.proposalId, event.proposalId)) {
-          return invalid(state, event, "proposal id mismatch");
+          return invalidTransition(state, event, "proposal id mismatch");
         }
         return {
           ok: true,
@@ -156,7 +147,7 @@ export function transitionDelegationState(
           state: { status: "expired", changedAt: event.at, proposalId: state.proposalId },
         };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
     }
 
     case "no_changes":
@@ -164,7 +155,7 @@ export function transitionDelegationState(
     case "accepted":
     case "rejected":
     case "expired": {
-      return invalid(state, event, "state is terminal");
+      return invalidTransition(state, event, "state is terminal");
     }
 
     default: {

@@ -1,3 +1,5 @@
+import { type TransitionResult, invalidTransition } from "../stateUtils.js";
+
 export type JobStatus =
   | "RECEIVED"
   | "PARSED"
@@ -116,9 +118,7 @@ export type JobEvent =
   | { type: "cancelled"; at: number; reason: string }
   | { type: "timed_out"; at: number; reason: string };
 
-export type JobTransitionResult =
-  | { ok: true; state: JobState }
-  | { ok: false; error: string; state: JobState };
+export type JobTransitionResult = TransitionResult<JobState>;
 
 export function createReceivedJobState(jobId: string, at: number): ReceivedJobState {
   return { jobId, status: "RECEIVED", changedAt: at };
@@ -126,15 +126,6 @@ export function createReceivedJobState(jobId: string, at: number): ReceivedJobSt
 
 export function isTerminalJobStatus(status: JobStatus): boolean {
   return status === "DONE" || status === "DENIED" || status === "FAILED" || status === "CANCELLED" || status === "TIMED_OUT";
-}
-
-function invalid(state: JobState, event: JobEvent, reason?: string): JobTransitionResult {
-  const suffix = reason ? `: ${reason}` : "";
-  return {
-    ok: false,
-    error: `Invalid job transition ${state.status} -> ${event.type}${suffix}`,
-    state,
-  };
 }
 
 function toFailureTerminal(
@@ -159,7 +150,7 @@ function handleUniversalTerminal(state: JobState, event: JobEvent): JobTransitio
 
 export function transitionJobState(state: JobState, event: JobEvent): JobTransitionResult {
   if (isTerminalJobStatus(state.status)) {
-    return invalid(state, event, "state is terminal");
+    return invalidTransition(state, event, "state is terminal");
   }
 
   const universalTerminal = handleUniversalTerminal(state, event);
@@ -172,13 +163,13 @@ export function transitionJobState(state: JobState, event: JobEvent): JobTransit
       if (event.type === "parsed") {
         return { ok: true, state: { jobId: state.jobId, status: "PARSED", changedAt: event.at } };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
 
     case "PARSED":
       if (event.type === "policy_checked") {
         return { ok: true, state: { jobId: state.jobId, status: "POLICY_CHECKED", changedAt: event.at } };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
 
     case "POLICY_CHECKED":
       if (event.type === "planned") {
@@ -190,13 +181,13 @@ export function transitionJobState(state: JobState, event: JobEvent): JobTransit
           state: { jobId: state.jobId, status: "DENIED", changedAt: event.at, reason: event.reason },
         };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
 
     case "PLANNED":
       if (event.type === "executing") {
         return { ok: true, state: { jobId: state.jobId, status: "EXECUTING", changedAt: event.at } };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
 
     case "EXECUTING":
       if (event.type === "pr_opened") {
@@ -208,7 +199,7 @@ export function transitionJobState(state: JobState, event: JobEvent): JobTransit
       if (event.type === "done") {
         return { ok: true, state: { jobId: state.jobId, status: "DONE", changedAt: event.at } };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
 
     case "PR_OPENED":
       if (event.type === "waiting_approval") {
@@ -223,7 +214,7 @@ export function transitionJobState(state: JobState, event: JobEvent): JobTransit
           state: { jobId: state.jobId, status: "MERGED", changedAt: event.at, prNumber: state.prNumber },
         };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
 
     case "WAITING_APPROVAL":
       if (event.type === "merged") {
@@ -232,7 +223,7 @@ export function transitionJobState(state: JobState, event: JobEvent): JobTransit
           state: { jobId: state.jobId, status: "MERGED", changedAt: event.at, prNumber: state.prNumber },
         };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
 
     case "MERGED":
       if (event.type === "deployed") {
@@ -241,7 +232,7 @@ export function transitionJobState(state: JobState, event: JobEvent): JobTransit
           state: { jobId: state.jobId, status: "DEPLOYED", changedAt: event.at, prNumber: state.prNumber },
         };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
 
     case "DEPLOYED":
       if (event.type === "done") {
@@ -250,14 +241,14 @@ export function transitionJobState(state: JobState, event: JobEvent): JobTransit
           state: { jobId: state.jobId, status: "DONE", changedAt: event.at, prNumber: state.prNumber },
         };
       }
-      return invalid(state, event);
+      return invalidTransition(state, event);
 
     case "DONE":
     case "DENIED":
     case "FAILED":
     case "CANCELLED":
     case "TIMED_OUT":
-      return invalid(state, event, "state is terminal");
+      return invalidTransition(state, event, "state is terminal");
 
     default: {
       const exhaustive: never = state;

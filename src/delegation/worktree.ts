@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import type { PendingProposal } from "./proposals.js";
 import type { ProposalFileDiff } from "./types.js";
 import { getRuntimeConfig } from "../runtimeConfig.js";
+import { truncateText } from "../validators.js";
 
 export interface GitRunResult {
   code: number;
@@ -54,8 +55,7 @@ function previewFromDiff(diff: string, maxLines?: number, maxChars?: number): st
   const runtimeConfig = getRuntimeConfig();
   const effectiveMaxLines = maxLines ?? runtimeConfig.delegateDiffPreviewMaxLines;
   const effectiveMaxChars = maxChars ?? runtimeConfig.delegateDiffPreviewMaxChars;
-  const limited = diff.split("\n").slice(0, effectiveMaxLines).join("\n");
-  return limited.length > effectiveMaxChars ? limited.slice(0, effectiveMaxChars) : limited;
+  return truncateText(diff, effectiveMaxLines, effectiveMaxChars).result;
 }
 
 function inferLanguage(filePath: string): string {

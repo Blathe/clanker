@@ -42,10 +42,6 @@ function pushUserHistory(history: ChatCompletionMessageParam[], content: string)
   history.push({ role: "user", content });
 }
 
-function orchestrationEnabled(ctx: TurnActionContext): boolean {
-  return ctx.jobOrchestrationEnabled !== false;
-}
-
 async function handleMessageAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
   if (ctx.response.type !== "message") return "continue";
   await ctx.send(ctx.response.explanation);
@@ -108,12 +104,6 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
 async function handleEditAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
   if (ctx.response.type !== "edit") return "continue";
 
-  if (orchestrationEnabled(ctx)) {
-    await ctx.send("Direct edit actions are disabled in job orchestration mode.");
-    pushUserHistory(ctx.history, "Edit action blocked: legacy direct edit path disabled.");
-    return "break";
-  }
-
   if (ctx.channel === "discord" && !ctx.discordUnsafeEnableWrites) {
     pushUserHistory(
       ctx.history,
@@ -151,12 +141,6 @@ async function handleEditAction(ctx: TurnActionContext): Promise<TurnActionOutco
 
 async function handleCommandAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
   if (ctx.response.type !== "command") return "continue";
-
-  if (orchestrationEnabled(ctx)) {
-    await ctx.send("Direct command execution is disabled in job orchestration mode.");
-    pushUserHistory(ctx.history, "Command action blocked: legacy direct command path disabled.");
-    return "break";
-  }
 
   // Validate command length before policy evaluation
   const lengthValidation = validateCommandLength(ctx.response.command);
@@ -238,6 +222,15 @@ async function handleCommandAction(ctx: TurnActionContext): Promise<TurnActionOu
 }
 
 export async function handleTurnAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
+  // Legacy direct-action types are blocked when job orchestration mode is on (default).
+  // ctx.jobOrchestrationEnabled defaults to true when omitted.
+  const orchestrationOn = ctx.jobOrchestrationEnabled !== false;
+  if (orchestrationOn && (ctx.response.type === "command" || ctx.response.type === "edit")) {
+    await ctx.send(`Direct ${ctx.response.type} actions are disabled in job orchestration mode.`);
+    pushUserHistory(ctx.history, `${ctx.response.type} action blocked: legacy direct ${ctx.response.type} path disabled.`);
+    return "break";
+  }
+
   switch (ctx.response.type) {
     case "message":
       return handleMessageAction(ctx);

@@ -1,6 +1,7 @@
 import type { DelegateResult } from "./types.js";
 import type { PendingProposal } from "./proposals.js";
 import { getRuntimeConfig } from "../runtimeConfig.js";
+import { truncateText } from "../validators.js";
 
 function iso(ts: number): string {
   return new Date(ts).toISOString();
@@ -8,16 +9,12 @@ function iso(ts: number): string {
 
 function truncateDiff(diff: string): string {
   const runtimeConfig = getRuntimeConfig();
-  const maxLines = runtimeConfig.delegateFileDiffMaxLines;
-  const maxChars = runtimeConfig.delegateFileDiffMaxChars;
-  const lines = diff.split("\n");
-  const clippedByLines = lines.slice(0, maxLines).join("\n");
-  let clipped = clippedByLines;
-  if (clipped.length > maxChars) {
-    clipped = clipped.slice(0, maxChars);
-  }
-  const truncated = clipped.length < diff.length;
-  return truncated ? `${clipped}\n... [diff truncated]` : clipped;
+  const { result, truncated } = truncateText(
+    diff,
+    runtimeConfig.delegateFileDiffMaxLines,
+    runtimeConfig.delegateFileDiffMaxChars
+  );
+  return truncated ? `${result}\n... [diff truncated]` : result;
 }
 
 function formatProposalFileMessage(fileDiff: {

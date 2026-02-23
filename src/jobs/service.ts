@@ -13,7 +13,6 @@ export interface PolicyDecisionInput {
 export class JobService {
   private readonly states = new Map<string, JobState>();
   private readonly jobPrNumbers = new Map<string, number>();
-  private readonly initialPackets = new Map<string, UserMessagePacket>();
 
   createJob(packet: UserMessagePacket, at: number): JobState {
     if (this.states.has(packet.job_id)) {
@@ -22,16 +21,11 @@ export class JobService {
 
     const state = createReceivedJobState(packet.job_id, at);
     this.states.set(packet.job_id, state);
-    this.initialPackets.set(packet.job_id, packet);
     return state;
   }
 
   getState(jobId: string): JobState | null {
     return this.states.get(jobId) ?? null;
-  }
-
-  getInitialPacket(jobId: string): UserMessagePacket | null {
-    return this.initialPackets.get(jobId) ?? null;
   }
 
   markParsed(jobId: string, at: number): JobState {
