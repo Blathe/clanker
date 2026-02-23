@@ -1,0 +1,18 @@
+services:
+  clanker:
+    build: .
+    image: clanker:dev
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      DISCORD_ALLOWED_USER_IDS: ${DISCORD_ALLOWED_USER_IDS}
+      DISCORD_ALLOWED_CHANNEL_IDS: ${DISCORD_ALLOWED_CHANNEL_IDS}
+      DISCORD_UNSAFE_ENABLE_WRITES: ${DISCORD_UNSAFE_ENABLE_WRITES}
+      GITHUB_DELEGATE_PROVIDER: ${GITHUB_DELEGATE_PROVIDER}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_WORKFLOW_ID: ${GITHUB_WORKFLOW_ID}
+      GITHUB_REPO: ${GITHUB_REPO}
+      CLANKER_TRANSPORTS: discord
+    volumes:
+      - ./audit:/app/audit
+    restart: unless-stopped

@@ -1,0 +1,54 @@
+{
+    "default_action": "block",
+    "rules": [
+        {
+            "id": "allow-curl",
+            "pattern": "^curl\\b(?!.*(?:-d\\s*@|--data\\s*@|--data-binary\\s*@|--upload-file|\\s-T\\s))(?:\\s+(?:[^;|&]|\\\\[;|&])*)?$",
+            "action": "allow",
+            "description": "Allow curl network requests (no command chaining, no file upload)"
+        },
+        {
+            "id": "block-network",
+            "pattern": "\\b(wget|nc|ssh|scp)\\b",
+            "action": "block",
+            "description": "Network commands blocked"
+        },
+        {
+            "id": "block-rm-rf",
+            "pattern": "\\b(rm|remove)\\b(?=.*(?:-[a-z]*r|--recursive))(?=.*(?:-[a-z]*f|--force))",
+            "action": "block",
+            "description": "Destructive deletion blocked"
+        },
+        {
+            "id": "secret-for-write",
+            "pattern": "\\b(tee|mv|cp|mkdir|touch|chmod|dd|sed)\\b|\\s>>?\\s",
+            "action": "requires-secret",
+            "description": "Write operations require passphrase",
+            "secret_hash": "788006caf535441ad49e2747bb0edd0203f38a74caacf7c337fc1a9ecfa99cd8"
+        },
+        {
+            "id": "allow-git-commands",
+            "pattern": "^git\\b(?!.*(?:--hard|--force|-f(?:\\s|$)|-D(?:\\s|$)|clean\\s+.*-f|\\bpush\\b|config.*--global))(?:[^;|&]|\\\\[;|&])*$",
+            "action": "allow",
+            "description": "Allow most git commands except destructive operations (--hard, --force, force-delete, push, config --global)"
+        },
+        {
+            "id": "block-audit-dir",
+            "pattern": "\\baudit/",
+            "action": "block",
+            "description": "Block access to audit log files"
+        },
+        {
+            "id": "allow-reads",
+            "pattern": "^(ls|cat|head|tail|grep|find|pwd|which)(?:\\s+(?:[^;|&]|\\\\[;|&])*)?$",
+            "action": "allow",
+            "description": "Read-only inspection"
+        },
+        {
+            "id": "blocked-shell-commands",
+            "pattern": "^(ps)\\b",
+            "action": "block",
+            "description": "Blocked shell commands."
+        }
+    ]
+}

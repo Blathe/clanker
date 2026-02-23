@@ -3,20 +3,30 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "node --env-file=.env --import tsx src/main.ts",
-    "dev": "node --env-file=.env --watch --import tsx src/main.ts",
-    "doctor": "node --env-file=.env --import tsx src/doctor.ts"
+    "start": "node --env-file-if-exists=.env --import tsx agent/main.ts",
+    "dev": "node --env-file-if-exists=.env --watch --import tsx agent/main.ts",
+    "doctor": "node --env-file-if-exists=.env --import tsx agent/doctor.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "discord.js": "^14.21.0",
-    "openai": "^4.85.0"
+    "openai": "^4.85.0",
+    "zod": "^4.3.6"
   },
   "overrides": {
     "undici": "^6.23.0"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.0.0",
+    "@vitest/ui": "^4.0.18",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "@types/node": "^22.0.0"
+    "vitest": "^4.0.18"
   }
 }

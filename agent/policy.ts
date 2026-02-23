@@ -1,15 +1,27 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { z } from "zod";
 import type { PolicyConfig, PolicyRule, PolicyVerdict } from "./types.js";
+import { FILES } from "./paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const PolicyRuleSchema = z.object({
+  id: z.string().min(1),
+  description: z.string(),
+  pattern: z.string().min(1),
+  action: z.enum(["allow", "block", "requires-secret"]),
+  secret_hash: z.string().optional(),
+});
+
+const PolicyConfigSchema = z.object({
+  default_action: z.enum(["allow", "block"]),
+  rules: z.array(PolicyRuleSchema),
+});
 
 function loadPolicy(): PolicyConfig {
-  const policyPath = join(__dirname, "..", "policy.json");
+  const policyPath = join(process.cwd(), FILES.policy);
   const raw = readFileSync(policyPath, "utf8");
-  return JSON.parse(raw) as PolicyConfig;
+  return PolicyConfigSchema.parse(JSON.parse(raw));
 }
 
 let _policy: PolicyConfig | null = null;
@@ -21,11 +33,16 @@ function getPolicy(): PolicyConfig {
   return _policy;
 }
 
+export function resetPolicyForTest(): void {
+  _policy = null;
+}
+
 export function evaluate(command: string): PolicyVerdict {
   const policy = getPolicy();
 
   for (const rule of policy.rules) {
-    const regex = new RegExp(rule.pattern, "i");
+    // Do NOT use case-insensitive flag - prevents certain bypass techniques
+    const regex = new RegExp(rule.pattern);
     if (regex.test(command)) {
       return verdictFromRule(rule);
     }
@@ -76,5 +93,11 @@ export function verifySecret(ruleId: string, passphrase: string): boolean {
     .update(passphrase.trim())
     .digest("hex");
 
-  return hash === rule.secret_hash;
+  try {
+    // Use timingSafeEqual to prevent timing attacks
+    return timingSafeEqual(Buffer.from(hash), Buffer.from(rule.secret_hash));
+  } catch {
+    // If buffers are different lengths, comparison will throw
+    return false;
+  }
 }
