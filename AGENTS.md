@@ -1,10 +1,10 @@
-﻿# AGENTS.md
+# AGENTS.md
 
 This file provides guidance to Codex CLI when working with code in this repository.
 
 ## Project: Clanker
 
-A security-focused TypeScript CLI agent built on OpenAI's GPT-4o with Anthropic Claude integration for delegation. Accepts user chat messages, sends them to an LLM (OpenAI GPT-4o), and intercepts every proposed action through a Policy Gate before execution. Supports multiple transports: interactive REPL and Discord. Complex programming tasks can be delegated to Claude Code via Anthropic's Agent SDK.
+A security-focused TypeScript CLI agent built on OpenAI's GPT-4o. Accepts user chat messages, sends them to an LLM (OpenAI GPT-4o), and intercepts every proposed action through a Policy Gate before execution. Supports multiple transports: interactive REPL and Discord. Complex programming tasks can be delegated by triggering a GitHub Actions `workflow_dispatch` event; the workflow runs Claude Code or Codex on GitHub's infrastructure and opens a PR.
 
 ## Commands
 
@@ -75,26 +75,43 @@ npm run test:coverage # Check coverage on critical paths
 ## Architecture
 
 ```
-src/
+agent/
   types.ts          # Shared interfaces (ExecuteCommandInput, PolicyVerdict, LLMResponse, etc.)
   policy.ts         # Policy gate: evaluate(command) → PolicyVerdict, verifySecret()
   executor.ts       # runCommand() via spawnSync bash -c, applyEdit(), formatResult()
-  llm.ts            # OpenAI SDK wrapper (gpt-4o), callLLM()
+  llm.ts            # OpenAI SDK wrapper (gpt-4o), callLLM(), validateOpenAIKey()
   logger.ts         # Session event logging: initLogger(), logUserInput(), logLLMResponse(), etc.
-  main.ts           # Entry point: transport orchestration, session state, processTurn(), delegateToClaude()
+  main.ts           # Entry point: transport orchestration, session state, processTurn()
   context.ts        # Builds system prompt: loadSoul(), loadMemory(), loadLastSession()
   runtime.ts        # Shared types: Channel, SendFn, ProcessTurn
   config.ts         # Env var parsing: getEnv(), envFlagEnabled(), parseTransportsDetailed(), etc.
   doctor.ts         # Config validator — checks all env vars, exits 1 on failure
+  runtimeConfig.ts  # Numeric/model runtime tuning overrides
+  session.ts        # Session state management (SessionManager)
   turnHandlers.ts   # Modular action handlers: handleTurnAction() dispatches by LLMResponse.type
+  validators.ts     # Input length validation, text truncation
+  dispatch/
+    types.ts        # DispatchConfig, DispatchResult interfaces
+    config.ts       # loadDispatchConfig() — reads GITHUB_DELEGATE_PROVIDER etc.
+    dispatcher.ts   # dispatchWorkflow() — POSTs workflow_dispatch to GitHub Actions API
+    poller.ts       # startPrPoller() — polls for opened PR and notifies user
   transports/
     repl.ts         # Interactive REPL transport (/help, /clear, /exit slash commands)
     discord.ts      # Discord bot transport (discord.js)
 config/
   SOUL.md           # Agent personality — loaded at startup, prepended to system prompt
-MEMORY.md           # Persistent agent memory — injected into system prompt each session
-policy.json         # Rule definitions (first-match wins, default: block)
-sessions/           # JSONL session logs (git-ignored)
+  prompts/
+    system/         # Core system prompt fragments (core.md, action-contract.md, routing.md)
+    delegation/     # Delegation prompt template
+memory/
+  MEMORY.md         # Persistent agent memory — injected into system prompt each session
+policies/
+  policy.json       # Rule definitions (first-match wins, default: block)
+audit/              # JSONL session logs (git-ignored)
+.github/
+  workflows/
+    clanker-delegate-claude.yml  # GitHub Actions workflow for Claude Code delegation
+    clanker-delegate-codex.yml   # GitHub Actions workflow for Codex delegation
 ```
 
 ## LLM Response Types
@@ -105,10 +122,12 @@ The LLM must return one of four JSON shapes (`LLMResponse` in `types.ts`):
 |------|--------|--------|
 | `command` | `command`, `working_dir?`, `explanation` | Runs a shell command through the policy gate |
 | `edit` | `file`, `old`, `new`, `explanation` | Replaces exact text in a file (requires passphrase unless Discord unsafe mode) |
-| `delegate` | `prompt`, `working_dir?`, `explanation` | Delegates to Claude Code in isolated review mode; returns a proposal diff that must be accepted/rejected (requires `ENABLE_CLAUDE_DELEGATE=1` and `ANTHROPIC_API_KEY`) |
+| `delegate` | `prompt`, `working_dir?`, `explanation` | Triggers a GitHub Actions `workflow_dispatch` event; the workflow runs Claude Code or Codex and opens a PR; Clanker polls for the PR and notifies the user with a link (requires `GITHUB_DELEGATE_PROVIDER`, `GITHUB_TOKEN`, `GITHUB_WORKFLOW_ID`) |
 | `message` | `explanation` | Replies with text only, no action |
 
-## Policy Rules (policy.json)
+Note: only `delegate` responses spawn a GitHub Actions job. `command`, `edit`, and `message` all execute locally and synchronously.
+
+## Policy Rules (policies/policy.json)
 
 Rules are evaluated in order; first match wins. Default is `"block"` (deny by default).
 
@@ -131,16 +150,21 @@ To generate a new hash: `node -e "const {createHash}=require('crypto'); console.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes | OpenAI API key for GPT-4o (must start with `sk-`) |
-| `ANTHROPIC_API_KEY` | For delegation | Anthropic API key (required if `ENABLE_CLAUDE_DELEGATE=1`); must start with `sk-ant-` |
 | `CLANKER_TRANSPORTS` | No | Comma-separated: `repl`, `discord` (default: both) |
-| `CLANKER_CLAUDE_ACTIVE_MODEL` | No | Claude model for delegation (default: `claude-sonnet-4-6`); e.g. `claude-opus-4-6` |
 | `DISCORD_BOT_TOKEN` | For Discord | Bot token; absence disables Discord transport |
 | `DISCORD_ALLOWED_USER_IDS` | No | Comma-separated Discord snowflake IDs; empty = any user |
 | `DISCORD_ALLOWED_CHANNEL_IDS` | No | Comma-separated Discord snowflake IDs; empty = any channel |
 | `DISCORD_UNSAFE_ENABLE_WRITES` | No | `1`/`true` = Discord can trigger write/delegate actions (dangerous) |
-| `ENABLE_CLAUDE_DELEGATE` | No | `1`/`true` = enable `delegate` action via Anthropic Agent SDK |
+| `GITHUB_DELEGATE_PROVIDER` | For delegation | `claude` or `codex`; enables `delegate` action via GitHub Actions |
+| `GITHUB_TOKEN` | For delegation | GitHub PAT with `contents:write` and `pull-requests:write` scope |
+| `GITHUB_REPO` | No | `owner/repo` — auto-detected from `git remote get-url origin` if not set |
+| `GITHUB_WORKFLOW_ID` | For delegation | Workflow filename, e.g. `clanker-delegate-claude.yml` |
+| `GITHUB_DEFAULT_BRANCH` | No | Branch to dispatch workflow on (default: `main`) |
 | `SHELL_BIN` | No | Override shell for command execution (default: bash, or Git Bash on Windows) |
-| `CLANKER_*` runtime tuning overrides | No | Optional numeric/model limits (history, queue, diff truncation, logger caps, OpenAI model/tokens); validated by `npm run doctor` |
+| `CLANKER_CHAT_PROVIDER` | No | Chat provider (default: `openai`; only `openai` currently supported) |
+| `CLANKER_CHAT_MODEL` | No | Model name (default: `gpt-4o`) |
+| `CLANKER_CHAT_MAX_TOKENS` | No | Max tokens per LLM response (default: `1024`) |
+| `CLANKER_*` runtime tuning overrides | No | Optional numeric limits (history, poll intervals, logger caps); validated by `npm run doctor` |
 
 ## Transports
 
@@ -156,65 +180,60 @@ Clanker maintains a brief log of each session so the agent can resume with conte
 
 1. **During a session** — every completed user turn is appended to `sessionTopics[]` (first 100 chars of user message, prefixed with channel).
 2. **On exit** (`exit`, Ctrl-C, or fatal error) — `logSessionSummary(sessionTopics)` writes a `{ ev: "summary", topics: [...] }` entry to the JSONL session file, followed by the `end` event.
-3. **On next startup** — `loadLastSession()` in `context.ts` reads the most recent `sessions/*.jsonl` file:
+3. **On next startup** — `loadLastSession()` in `context.ts` reads the most recent `audit/*.jsonl` file:
    - If a `summary` event is found, it formats the topic list as a `## Last Session Summary` block and injects it into the system prompt.
    - If no summary exists (e.g. session was killed mid-write), it falls back to reconstructing a narrative from raw `user` / `llm` events.
 4. **Console recap** — if a last session exists, the first 6 lines of the summary are also printed to the terminal at startup.
 
 ### Session files
 
-Session logs live in `sessions/` (git-ignored). File names follow the pattern `YYYY-MM-DDTHH-MM-SS_<pid>.jsonl`. Each line is a JSON object with a `t` (unix timestamp) and `ev` (event type) field.
+Session logs live in `audit/` (git-ignored). File names follow the pattern `YYYY-MM-DDTHH-MM-SS_<pid>.jsonl`. Each line is a JSON object with a `t` (unix timestamp) and `ev` (event type) field.
 
-Event types: `start`, `user`, `llm`, `policy`, `auth`, `cmd`, `edit`, `delegate`, `proposal`, `summary`, `end`.
+Event types: `start`, `user`, `llm`, `policy`, `auth`, `cmd`, `edit`, `delegate`, `summary`, `end`.
 
 ## Persistent Agent Memory
 
-`MEMORY.md` at the project root is injected into the system prompt under a `## Persistent Memory` section. The agent can read and write this file to persist knowledge across sessions.
+`memory/MEMORY.md` is injected into the system prompt under a `## Persistent Memory` section. The agent can read and write this file to persist knowledge across sessions.
 
 ## Usage
 
 ```bash
-# Basic setup (OpenAI only)
+# Basic setup
 OPENAI_API_KEY=sk-... npm start
 > list files in current directory    # allow-reads rule → executed
-> download something with wget from the web    # block-network rule → blocked
+> download something with wget       # block-network rule → blocked
 > create a new directory called foo  # secret-for-write → prompts for passphrase
 
-# With Claude delegation enabled
-OPENAI_API_KEY=sk-... ANTHROPIC_API_KEY=sk-ant-... ENABLE_CLAUDE_DELEGATE=1 npm start
-> delegate to claude to refactor this function  # delegate action → invokes Claude Code via Agent SDK
+# With GitHub Actions delegation enabled
+OPENAI_API_KEY=sk-... GITHUB_DELEGATE_PROVIDER=claude GITHUB_TOKEN=ghp_... GITHUB_WORKFLOW_ID=clanker-delegate-claude.yml npm start
+> refactor the auth module           # delegate action → triggers workflow_dispatch → opens PR
 ```
 
-## Delegation to Claude Code
+## Delegation via GitHub Actions
 
-When `ENABLE_CLAUDE_DELEGATE=1` and `ANTHROPIC_API_KEY` is set, the agent can delegate complex programming tasks to Claude Code via the Anthropic Agent SDK. Delegated tasks:
+When `GITHUB_DELEGATE_PROVIDER`, `GITHUB_TOKEN`, and `GITHUB_WORKFLOW_ID` are set, the `delegate` action dispatches a `workflow_dispatch` event. No AI code runs in-process — all execution happens on GitHub's infrastructure.
 
-- Run in a separate isolated git worktree with access to Claude Code tools
-- Have their own policy evaluation (delegated commands are still checked against `policy.json`)
-- Return results as a proposal diff with `accept` and `reject` controls
-- Support any Claude model specified via `CLANKER_CLAUDE_ACTIVE_MODEL`
+Only `delegate` responses trigger a job. `command`, `edit`, and `message` responses execute locally without spawning any workflow.
 
-Example delegate flow:
-1. User: "I need help refactoring this TypeScript module"
-2. Clanker asks Claude to delegate the task
-3. Claude Code (via Agent SDK) explores files, makes edits, runs tests
-4. Results are returned as a pending proposal diff (`pending`, `accept`, `reject`)
-5. Clanker applies changes only after explicit `accept`
+Example flow:
+1. GPT-4o returns a `delegate` response for a complex task
+2. Clanker POSTs `workflow_dispatch` to `GITHUB_WORKFLOW_ID` on the default branch
+3. The workflow creates branch `clanker/<jobId>`, runs Claude Code or Codex, opens a PR
+4. Clanker polls `GET /repos/{repo}/pulls` every 30s (configurable) and notifies: `✓ PR ready: <title> — <url>`
+5. On timeout (default 30min), notifies with a link to the Actions tab
 
 ## Config Doctor
-
-Run the doctor to validate all environment variables before starting:
 
 ```bash
 npm run doctor
 ```
 
-The doctor validates:
+Validates:
 - `OPENAI_API_KEY` format (must start with `sk-`)
-- `ANTHROPIC_API_KEY` format if delegation is enabled (must start with `sk-ant-`)
 - Discord configuration (token, allowlists, unsafe mode flag)
 - Transport configuration (at least one transport must be enabled)
-- Delegate configuration (`ENABLE_CLAUDE_DELEGATE` flag validity)
+- `GITHUB_DELEGATE_PROVIDER`, `GITHUB_TOKEN`, `GITHUB_WORKFLOW_ID`, `GITHUB_REPO` format when delegation is configured
+- All `CLANKER_*` numeric overrides
 
 ## Security & Testing
 
