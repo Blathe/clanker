@@ -3,7 +3,7 @@ import {
   isTerminalJobStatus,
   transitionJobState,
   type JobState,
-} from "../../../src/jobs/stateMachine.js";
+} from "../../../agent/jobs/stateMachine.js";
 
 function apply(state: JobState, event: Parameters<typeof transitionJobState>[1]): JobState {
   const result = transitionJobState(state, event);

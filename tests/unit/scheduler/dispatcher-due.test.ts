@@ -1,4 +1,4 @@
-import { computeDueRunInstances } from "../../../src/scheduler/dispatcher.js";
+import { computeDueRunInstances } from "../../../agent/scheduler/dispatcher.js";
 
 describe("scheduler dispatcher due computation", () => {
   test("computes due daily run in America/Los_Angeles", () => {

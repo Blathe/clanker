@@ -75,7 +75,7 @@ npm run test:coverage # Check coverage on critical paths
 ## Architecture
 
 ```
-src/
+agent/
   types.ts          # Shared interfaces (ExecuteCommandInput, PolicyVerdict, LLMResponse, etc.)
   policy.ts         # Policy gate: evaluate(command) → PolicyVerdict, verifySecret()
   executor.ts       # runCommand() via spawnSync bash -c, applyEdit(), formatResult()
@@ -92,9 +92,13 @@ src/
     discord.ts      # Discord bot transport (discord.js)
 config/
   SOUL.md           # Agent personality — loaded at startup, prepended to system prompt
-MEMORY.md           # Persistent agent memory — injected into system prompt each session
-policy.json         # Rule definitions (first-match wins, default: block)
-sessions/           # JSONL session logs (git-ignored)
+memory/
+  MEMORY.md         # Persistent agent memory — injected into system prompt each session
+policies/
+  policy.json       # Rule definitions (first-match wins, default: block)
+audit/              # JSONL session logs (git-ignored)
+skills/             # Markdown runbooks (future)
+cron/               # Cron job definitions (future)
 ```
 
 ## LLM Response Types
@@ -156,20 +160,20 @@ Clanker maintains a brief log of each session so the agent can resume with conte
 
 1. **During a session** — every completed user turn is appended to `sessionTopics[]` (first 100 chars of user message, prefixed with channel).
 2. **On exit** (`exit`, Ctrl-C, or fatal error) — `logSessionSummary(sessionTopics)` writes a `{ ev: "summary", topics: [...] }` entry to the JSONL session file, followed by the `end` event.
-3. **On next startup** — `loadLastSession()` in `context.ts` reads the most recent `sessions/*.jsonl` file:
+3. **On next startup** — `loadLastSession()` in `context.ts` reads the most recent `audit/*.jsonl` file:
    - If a `summary` event is found, it formats the topic list as a `## Last Session Summary` block and injects it into the system prompt.
    - If no summary exists (e.g. session was killed mid-write), it falls back to reconstructing a narrative from raw `user` / `llm` events.
 4. **Console recap** — if a last session exists, the first 6 lines of the summary are also printed to the terminal at startup.
 
 ### Session files
 
-Session logs live in `sessions/` (git-ignored). File names follow the pattern `YYYY-MM-DDTHH-MM-SS_<pid>.jsonl`. Each line is a JSON object with a `t` (unix timestamp) and `ev` (event type) field.
+Session logs live in `audit/` (git-ignored). File names follow the pattern `YYYY-MM-DDTHH-MM-SS_<pid>.jsonl`. Each line is a JSON object with a `t` (unix timestamp) and `ev` (event type) field.
 
 Event types: `start`, `user`, `llm`, `policy`, `auth`, `cmd`, `edit`, `delegate`, `proposal`, `summary`, `end`.
 
 ## Persistent Agent Memory
 
-`MEMORY.md` at the project root is injected into the system prompt under a `## Persistent Memory` section. The agent can read and write this file to persist knowledge across sessions.
+`memory/MEMORY.md` is injected into the system prompt under a `## Persistent Memory` section. The agent can read and write this file to persist knowledge across sessions.
 
 ## Usage
 

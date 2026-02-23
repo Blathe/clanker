@@ -5,7 +5,7 @@
 
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { loadLastSession } from "../../../src/context.js";
+import { loadLastSession } from "../../../agent/context.js";
 
 const TEST_SESSIONS_DIR = join(process.cwd(), ".test-tmp-sessions");
 

@@ -2,7 +2,7 @@
  * Unit tests for input length limits using production validateInputLength
  */
 
-import { validateInputLength } from "../../../src/validators.js";
+import { validateInputLength } from "../../../agent/validators.js";
 
 const MAX_USER_INPUT = 8000; // matches production default
 

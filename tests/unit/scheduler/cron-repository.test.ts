@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { FileCronRepository } from "../../../src/scheduler/cronRepository.js";
+import { FileCronRepository } from "../../../agent/scheduler/cronRepository.js";
 
 function sampleJob(jobId = "cron_daily_intel") {
   return {

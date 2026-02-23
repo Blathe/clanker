@@ -1,5 +1,5 @@
-import { formatResult } from "../../../src/executor.js";
-import type { ExecutionResult } from "../../../src/types.js";
+import { formatResult } from "../../../agent/executor.js";
+import type { ExecutionResult } from "../../../agent/types.js";
 
 describe("formatResult", () => {
   test("shows LLM explanation and stdout output without legacy labels", () => {

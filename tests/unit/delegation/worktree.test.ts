@@ -1,7 +1,7 @@
 import {
   runDelegationInIsolatedWorktree,
   type GitRunner,
-} from "../../../src/delegation/worktree.js";
+} from "../../../agent/delegation/worktree.js";
 
 function gitOk(stdout = "") {
   return { code: 0, stdout, stderr: "" };
@@ -72,12 +72,12 @@ describe("runDelegationInIsolatedWorktree", () => {
       if (cmd === "rev-parse HEAD") return gitOk("abc123\n");
       if (cmd.startsWith("worktree add --detach")) return gitOk("");
       if (cmd === "diff --binary --no-color") {
-        return gitOk("diff --git a/src/a.ts b/src/a.ts\n+hello\n");
+        return gitOk("diff --git../agent/a.ts../agent/a.ts\n+hello\n");
       }
       if (cmd === "diff --stat --no-color") return gitOk(" src/a.ts | 1 +\n");
       if (cmd === "diff --name-only --no-color") return gitOk("src/a.ts\n");
       if (cmd === "diff --no-color -- src/a.ts") {
-        return gitOk("diff --git a/src/a.ts b/src/a.ts\n+hello\n");
+        return gitOk("diff --git../agent/a.ts../agent/a.ts\n+hello\n");
       }
       return gitOk("");
     });

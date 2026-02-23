@@ -4,12 +4,12 @@
 
 import { jest } from "@jest/globals";
 
-jest.mock("../../../src/policy.js", () => ({
+jest.mock("../../../agent/policy.js", () => ({
   evaluate: jest.fn(),
   verifySecret: jest.fn(),
 }));
 
-jest.mock("../../../src/executor.js", () => ({
+jest.mock("../../../agent/executor.js", () => ({
   runCommand: jest.fn(),
   applyEdit: jest.fn(),
   validateCommandLength: jest.fn().mockReturnValue({ valid: true, error: null }),
@@ -17,7 +17,7 @@ jest.mock("../../../src/executor.js", () => ({
   validateWorkingDir: jest.fn().mockReturnValue({ valid: true }),
 }));
 
-jest.mock("../../../src/logger.js", () => ({
+jest.mock("../../../agent/logger.js", () => ({
   logVerdict: jest.fn(),
   logSecretVerification: jest.fn(),
   logCommandResult: jest.fn(),
@@ -25,10 +25,10 @@ jest.mock("../../../src/logger.js", () => ({
   logDelegate: jest.fn(),
 }));
 
-import { handleTurnAction } from "../../../src/turnHandlers.js";
-import { evaluate, verifySecret } from "../../../src/policy.js";
-import { runCommand } from "../../../src/executor.js";
-import type { LLMResponse } from "../../../src/types.js";
+import { handleTurnAction } from "../../../agent/turnHandlers.js";
+import { evaluate, verifySecret } from "../../../agent/policy.js";
+import { runCommand } from "../../../agent/executor.js";
+import type { LLMResponse } from "../../../agent/types.js";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 
 const mockEvaluate = jest.mocked(evaluate);

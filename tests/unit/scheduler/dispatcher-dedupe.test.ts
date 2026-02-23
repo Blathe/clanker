@@ -1,4 +1,4 @@
-import { buildRunInstanceId, dedupeRunInstances } from "../../../src/scheduler/dispatcher.js";
+import { buildRunInstanceId, dedupeRunInstances } from "../../../agent/scheduler/dispatcher.js";
 
 describe("scheduler dispatcher dedupe", () => {
   test("builds deterministic run instance id", () => {

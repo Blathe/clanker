@@ -2,7 +2,7 @@ import {
   getStepSecretPolicy,
   validateStepSecretAccess,
   type WorkflowStepKind,
-} from "../../../src/github/workflowPolicy.js";
+} from "../../../agent/github/workflowPolicy.js";
 
 describe("workflow secret exposure policy", () => {
   test.each<{

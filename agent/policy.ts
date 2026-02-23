@@ -18,7 +18,7 @@ const PolicyConfigSchema = z.object({
 });
 
 function loadPolicy(): PolicyConfig {
-  const policyPath = join(process.cwd(), "policy.json");
+  const policyPath = join(process.cwd(), "policies", "policy.json");
   const raw = readFileSync(policyPath, "utf8");
   return PolicyConfigSchema.parse(JSON.parse(raw));
 }

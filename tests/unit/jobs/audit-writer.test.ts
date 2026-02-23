@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { AuditWriter } from "../../../src/jobs/auditWriter.js";
+import { AuditWriter } from "../../../agent/jobs/auditWriter.js";
 
 describe("audit writer", () => {
   test("appends JSONL audit events under audit/YYYY/MM", () => {

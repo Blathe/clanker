@@ -3,7 +3,7 @@ import {
   isTerminalDelegationStatus,
   transitionDelegationState,
   type DelegationState,
-} from "../../../src/delegation/stateMachine.js";
+} from "../../../agent/delegation/stateMachine.js";
 
 function apply(state: DelegationState, event: Parameters<typeof transitionDelegationState>[1]) {
   const result = transitionDelegationState(state, event);

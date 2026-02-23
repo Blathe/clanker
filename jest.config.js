@@ -22,9 +22,9 @@ export default {
   },
   testMatch: ['**/tests/**/*.test.ts', '**/*.test.ts'],
   collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/**/*.d.ts',
-    '!src/types.ts', // Type definitions
+    'agent/**/*.ts',
+    '!agent/**/*.d.ts',
+    '!agent/types.ts', // Type definitions
   ],
   coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
   coverageThreshold: {

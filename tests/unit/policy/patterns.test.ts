@@ -5,8 +5,8 @@
 
 import { readFileSync } from 'fs';
 
-// Load policy.json from the project root
-const policyPath = process.cwd() + '/policy.json';
+// Load policy.json from the policies/ directory
+const policyPath = process.cwd() + '/policies/policy.json';
 const policy = JSON.parse(readFileSync(policyPath, 'utf8'));
 
 interface TestCase {
@@ -105,14 +105,14 @@ describe('Policy Regex Patterns', () => {
     );
   });
 
-  describe('block-sessions-dir rule', () => {
-    const rule = policy.rules.find((r: any) => r.id === 'block-sessions-dir');
+  describe('block-audit-dir rule', () => {
+    const rule = policy.rules.find((r: any) => r.id === 'block-audit-dir');
     const regex = new RegExp(rule.pattern);
 
     const testCases: TestCase[] = [
-      { cmd: 'cat sessions/foo.jsonl', shouldMatch: true, reason: 'direct session file read' },
-      { cmd: 'ls sessions/', shouldMatch: true, reason: 'listing sessions dir' },
-      { cmd: 'grep secret sessions/foo.jsonl', shouldMatch: true, reason: 'grepping session logs' },
+      { cmd: 'cat audit/foo.jsonl', shouldMatch: true, reason: 'direct audit file read' },
+      { cmd: 'ls audit/', shouldMatch: true, reason: 'listing audit dir' },
+      { cmd: 'grep secret audit/foo.jsonl', shouldMatch: true, reason: 'grepping audit logs' },
       { cmd: 'cat file.txt', shouldMatch: false, reason: 'normal read unaffected' },
       { cmd: 'ls', shouldMatch: false, reason: 'plain ls unaffected' },
     ];

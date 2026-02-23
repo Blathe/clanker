@@ -1,7 +1,7 @@
 import {
   parseDelegationControlCommand,
   type DelegationControlCommand,
-} from "../../../src/delegation/commandParser.js";
+} from "../../../agent/delegation/commandParser.js";
 
 describe("parseDelegationControlCommand", () => {
   test("parses conversational accept with pending proposal context", () => {

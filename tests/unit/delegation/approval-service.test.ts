@@ -1,7 +1,7 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
-import { DelegationApprovalService, type ApprovalServiceDeps } from "../../../src/delegation/approvalService.js";
-import type { DelegationControlCommand } from "../../../src/delegation/commandParser.js";
-import { ProposalStore } from "../../../src/delegation/proposals.js";
+import { DelegationApprovalService, type ApprovalServiceDeps } from "../../../agent/delegation/approvalService.js";
+import type { DelegationControlCommand } from "../../../agent/delegation/commandParser.js";
+import { ProposalStore } from "../../../agent/delegation/proposals.js";
 
 const baseProposal = {
   id: "p-1",
@@ -15,12 +15,12 @@ const baseProposal = {
   patchPath: "/tmp/p-1.patch",
   changedFiles: ["src/a.ts"],
   diffStat: " src/a.ts | 2 +-",
-  diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+  diffPreview: "diff --git../agent/a.ts../agent/a.ts",
   fileDiffs: [
     {
       filePath: "src/a.ts",
       language: "TypeScript",
-      diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;\n",
+      diff: "diff --git../agent/a.ts../agent/a.ts\n+const a = 1;\n",
     },
   ],
   delegateSummary: "done",

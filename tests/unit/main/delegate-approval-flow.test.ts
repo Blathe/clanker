@@ -2,8 +2,8 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import {
   handleDelegationControlCommand,
   type ApprovalDeps,
-} from "../../../src/delegation/approval.js";
-import { ProposalStore } from "../../../src/delegation/proposals.js";
+} from "../../../agent/delegation/approval.js";
+import { ProposalStore } from "../../../agent/delegation/proposals.js";
 
 describe("delegation approval flow", () => {
   const baseProposal = {
@@ -18,12 +18,12 @@ describe("delegation approval flow", () => {
     patchPath: "/tmp/p-1.patch",
     changedFiles: ["src/a.ts"],
     diffStat: " src/a.ts | 2 +-",
-    diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+    diffPreview: "diff --git../agent/a.ts../agent/a.ts",
     fileDiffs: [
       {
         filePath: "src/a.ts",
         language: "TypeScript",
-        diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;\n",
+        diff: "diff --git../agent/a.ts../agent/a.ts\n+const a = 1;\n",
       },
     ],
     delegateSummary: "done",

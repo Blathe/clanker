@@ -1,7 +1,7 @@
 import {
   ProposalStore,
   type CreateProposalInput,
-} from "../../../src/delegation/proposals.js";
+} from "../../../agent/delegation/proposals.js";
 
 function sampleInput(overrides: Partial<CreateProposalInput> = {}): CreateProposalInput {
   return {
@@ -16,12 +16,12 @@ function sampleInput(overrides: Partial<CreateProposalInput> = {}): CreatePropos
     patchPath: "/tmp/p-1.patch",
     changedFiles: ["src/a.ts"],
     diffStat: " src/a.ts | 2 +-",
-    diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+    diffPreview: "diff --git../agent/a.ts../agent/a.ts",
     fileDiffs: [
       {
         filePath: "src/a.ts",
         language: "TypeScript",
-        diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;\n",
+        diff: "diff --git../agent/a.ts../agent/a.ts\n+const a = 1;\n",
       },
     ],
     delegateSummary: "Updated file",

@@ -1,5 +1,5 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
-import { JobQueue } from "../../../src/queue.js";
+import { JobQueue } from "../../../agent/queue.js";
 
 describe("JobQueue delegate review messaging", () => {
   test("sends proposal metadata and accept/reject hints when available", async () => {
@@ -24,17 +24,17 @@ describe("JobQueue delegate review messaging", () => {
           expiresAt: 1_700_000_900_000,
           changedFiles: ["src/a.ts", "src/b.ts"],
           diffStat: " src/a.ts | 2 +-\n src/b.ts | 3 ++-",
-          diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+          diffPreview: "diff --git../agent/a.ts../agent/a.ts",
           fileDiffs: [
             {
               filePath: "src/a.ts",
               language: "TypeScript",
-              diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;\n",
+              diff: "diff --git../agent/a.ts../agent/a.ts\n+const a = 1;\n",
             },
             {
               filePath: "src/b.ts",
               language: "TypeScript",
-              diff: "diff --git a/src/b.ts b/src/b.ts\n+const b = 2;\n",
+              diff: "diff --git../agent/b.ts../agent/b.ts\n+const b = 2;\n",
             },
           ],
         },

@@ -1,4 +1,4 @@
-import { buildRuntimeConfig, validateRuntimeConfigEnv } from "../../../src/runtimeConfig.js";
+import { buildRuntimeConfig, validateRuntimeConfigEnv } from "../../../agent/runtimeConfig.js";
 
 describe("runtimeConfig", () => {
   test("buildRuntimeConfig returns defaults when no overrides are set", () => {

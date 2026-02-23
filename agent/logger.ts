@@ -6,7 +6,7 @@ import type { EditResult } from "./executor.js";
 import { getRuntimeConfig } from "./runtimeConfig.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SESSIONS_DIR = join(__dirname, "..", "sessions");
+const SESSIONS_DIR = join(__dirname, "..", "audit");
 
 let sessionFile: string | null = null;
 let pendingVersion: string | null = null;

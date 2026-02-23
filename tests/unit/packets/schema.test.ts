@@ -8,7 +8,7 @@ import {
   ToolCallPacketSchema,
   ToolResultPacketSchema,
   UserMessagePacketSchema,
-} from "../../../src/packets/schema.js";
+} from "../../../agent/packets/schema.js";
 
 function makeBase(packetType: string) {
   return {

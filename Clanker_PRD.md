@@ -1,8 +1,8 @@
 # PRD: Clanker — Single‑User, GitHub‑Native, Security‑First Autonomous Agent
 
-**Status:** v1.1 (markdown export)  
-**Scope:** 1 repo = 1 bot (no multi‑tenant, not exposed publicly)  
-**Runtime:** GitHub Actions (GitHub‑hosted runners)  
+**Status:** v1.1 (markdown export)
+**Scope:** 1 repo = 1 bot (no multi‑tenant, not exposed publicly)
+**Runtime:** GitHub Actions (GitHub‑hosted runners)
 **Primary UI:** Discord free‑form chat (v0), Web control panel (v1)
 
 ---
@@ -84,7 +84,6 @@ Minimum packet set:
 /jobs/YYYY/MM/           # job markdown summaries (human-readable)
 /audit/                  # append-only JSONL event logs + evidence manifests
 /cron/jobs.json          # mutable scheduled job definitions (source of truth)
-/intel/YYYY-MM/          # threat intel + audit reports (informational PRs)
 /memory/                 # preferences + summaries (separate from policies)
 /.github/workflows/      # intake, execute, cron-dispatcher, deploy, tests
 ```
@@ -240,7 +239,7 @@ Storage:
 
 Why:
 - Cron is a familiar standard and an easy “escape hatch” for any schedule shape.
-- It matches GitHub Actions `on.schedule` syntax (which is cron-based and interpreted in UTC).  
+- It matches GitHub Actions `on.schedule` syntax (which is cron-based and interpreted in UTC).
 
 > Note: GitHub Actions cron schedules are interpreted at specific **UTC** times, run on the latest commit on the **default branch**, and cannot run more frequently than **every 5 minutes**. This is why Clanker uses a dispatcher tick rather than depending on GitHub for exact per-job timing.
 
@@ -267,14 +266,14 @@ Rules:
 Assume `timezone = America/Los_Angeles`:
 
 - `0 17 * * *` → **“Every day at 5:00 PM America/Los_Angeles.”**
-- `0 * * * *` → **“Every hour at 12:00 AM, 1:00 AM, 2:00 AM, … America/Los_Angeles.”**  
+- `0 * * * *` → **“Every hour at 12:00 AM, 1:00 AM, 2:00 AM, … America/Los_Angeles.”**
   *(UI may shorten the middle with an ellipsis; the intent is “on the hour, every hour.”)*
 - `5 * * * *` → **“Every hour at 12:05 AM, 1:05 AM, 2:05 AM, … America/Los_Angeles.”**
 - `*/15 * * * *` → **“Every 15 minutes America/Los_Angeles.”**
 - `0 */2 * * *` → **“Every 2 hours at 12:00 AM, 2:00 AM, 4:00 AM, … America/Los_Angeles.”**
 - `0 9 * * 1-5` → **“Every weekday (Monday–Friday) at 9:00 AM America/Los_Angeles.”**
 - `0 9 * * 0,6` → **“Every weekend (Saturday and Sunday) at 9:00 AM America/Los_Angeles.”**
-- `0 1 */2 * *` → **“Every 2 days at 1:00 AM America/Los_Angeles.”**  
+- `0 1 */2 * *` → **“Every 2 days at 1:00 AM America/Los_Angeles.”**
   `cron_notes`: **“Day-of-month ‘*/2’ resets each month; this is not anchored to a specific start date.”**
 - `0 1 1 * *` → **“Every month on the 1st at 1:00 AM America/Los_Angeles.”**
 - `0 1 1 1 *` → **“Every year on January 1st at 1:00 AM America/Los_Angeles.”**
@@ -322,14 +321,14 @@ Dispatcher enqueues a `SELF_REVIEW_INTEL` job that:
 
 Split self-improvement into three streams:
 
-1. **Intel (informational, low-risk):** `/intel/YYYY-MM/*.md`  
+1. **Intel (informational, low-risk):** `/intel/YYYY-MM/*.md`
    - daily web security notes, LLM threat summaries, website diffs
    - can be auto-merged in Whitelist mode
 
-2. **Preferences memory (low-risk):** `/memory/PREFERENCES.md`  
+2. **Preferences memory (low-risk):** `/memory/PREFERENCES.md`
    - modes, allowlists, operator preferences, non-sensitive summaries
 
-3. **Behavior changes (high-risk):**  
+3. **Behavior changes (high-risk):**
    - updates to `/policies/**`, `/skills/**`, `/agent/**`
    - always PR-based, risk-rated, requires approval (esp. R3)
 

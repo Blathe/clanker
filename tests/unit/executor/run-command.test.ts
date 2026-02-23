@@ -9,7 +9,7 @@ jest.mock("node:child_process");
 
 const mockSpawnSync = jest.mocked(childProcess.spawnSync);
 
-import { runCommand } from "../../../src/executor.js";
+import { runCommand } from "../../../agent/executor.js";
 
 describe("runCommand()", () => {
   beforeEach(() => {

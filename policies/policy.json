@@ -33,10 +33,10 @@
             "description": "Allow most git commands except destructive operations (--hard, --force, force-delete, push, config --global)"
         },
         {
-            "id": "block-sessions-dir",
-            "pattern": "\\bsessions/",
+            "id": "block-audit-dir",
+            "pattern": "\\baudit/",
             "action": "block",
-            "description": "Block access to session log files"
+            "description": "Block access to audit log files"
         },
         {
             "id": "allow-reads",

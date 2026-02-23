@@ -1,5 +1,5 @@
-import { InMemoryGitHubAdapter } from "../../../src/github/adapter.js";
-import { JobPrOrchestrator } from "../../../src/github/prOrchestrator.js";
+import { InMemoryGitHubAdapter } from "../../../agent/github/adapter.js";
+import { JobPrOrchestrator } from "../../../agent/github/prOrchestrator.js";
 
 describe("job PR orchestrator", () => {
   test("opens one PR per job and groups multiple file edits", async () => {

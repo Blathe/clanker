@@ -1,7 +1,7 @@
 import {
   classifyDelegationTool,
   extractCommandForPolicy,
-} from "../../../src/delegation/toolPermissions.js";
+} from "../../../agent/delegation/toolPermissions.js";
 
 describe("delegation tool permission helpers", () => {
   test.each(["bash", "bash_execute_command", "Bash"])(

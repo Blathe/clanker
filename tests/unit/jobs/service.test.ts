@@ -1,5 +1,5 @@
-import { JobService } from "../../../src/jobs/service.js";
-import type { UserMessagePacket } from "../../../src/packets/types.js";
+import { JobService } from "../../../agent/jobs/service.js";
+import type { UserMessagePacket } from "../../../agent/packets/types.js";
 
 function makeUserPacket(jobId: string): UserMessagePacket {
   return {

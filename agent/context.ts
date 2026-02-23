@@ -37,7 +37,7 @@ function loadSoul(): string {
 }
 
 function loadMemory(): string {
-  const memoryPath = join(process.cwd(), "MEMORY.md");
+  const memoryPath = join(process.cwd(), "memory", "MEMORY.md");
   if (existsSync(memoryPath)) {
     return "## Persistent Memory\n\n" + readFileSync(memoryPath, "utf8").trim() + "\n\n";
   }
@@ -45,7 +45,7 @@ function loadMemory(): string {
 }
 
 export function loadLastSession(sessionsDir?: string): string {
-  if (!sessionsDir) sessionsDir = join(process.cwd(), "sessions");
+  if (!sessionsDir) sessionsDir = join(process.cwd(), "audit");
   if (!existsSync(sessionsDir)) return "";
 
   let files: string[];

@@ -1,4 +1,4 @@
-import { InMemoryGitHubAdapter } from "../../../src/github/adapter.js";
+import { InMemoryGitHubAdapter } from "../../../agent/github/adapter.js";
 
 describe("in-memory github adapter", () => {
   test("creates branch from default branch and upserts files", async () => {

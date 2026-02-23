@@ -5,7 +5,7 @@ import {
   composeSystemPromptFromTemplates,
   loadPromptTemplatesFrom,
   renderPromptTemplate,
-} from "../../../src/prompt/loadPrompts.js";
+} from "../../../agent/prompt/loadPrompts.js";
 
 function writePromptTree(baseDir: string, content?: Partial<Record<string, string>>): void {
   const promptsDir = join(baseDir, "config", "prompts");

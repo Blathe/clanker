@@ -1,12 +1,12 @@
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { InMemoryGitHubAdapter } from "../../../src/github/adapter.js";
-import { JobPrOrchestrator } from "../../../src/github/prOrchestrator.js";
-import { AuditWriter } from "../../../src/jobs/auditWriter.js";
-import { FileJobRepository } from "../../../src/jobs/repository.js";
-import { JobService } from "../../../src/jobs/service.js";
-import { AsyncJobSubmitter } from "../../../src/jobs/submitter.js";
+import { InMemoryGitHubAdapter } from "../../../agent/github/adapter.js";
+import { JobPrOrchestrator } from "../../../agent/github/prOrchestrator.js";
+import { AuditWriter } from "../../../agent/jobs/auditWriter.js";
+import { FileJobRepository } from "../../../agent/jobs/repository.js";
+import { JobService } from "../../../agent/jobs/service.js";
+import { AsyncJobSubmitter } from "../../../agent/jobs/submitter.js";
 
 describe("async job submit flow", () => {
   test("submits async job and sends accepted/running/completed updates", async () => {

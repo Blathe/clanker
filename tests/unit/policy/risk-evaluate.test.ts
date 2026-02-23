@@ -1,4 +1,4 @@
-import { evaluateJobPolicy, classifyJobRiskFromTouchedPaths } from "../../../src/jobPolicy.js";
+import { evaluateJobPolicy, classifyJobRiskFromTouchedPaths } from "../../../agent/jobPolicy.js";
 
 describe("job policy risk classification", () => {
   test("classifies R0 when no files are touched", () => {

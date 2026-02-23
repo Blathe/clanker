@@ -2,7 +2,7 @@
  * Unit tests for session limit enforcement using production SessionManager
  */
 
-import { SessionManager } from "../../../src/session.js";
+import { SessionManager } from "../../../agent/session.js";
 
 const MAX_SESSIONS = 100;
 

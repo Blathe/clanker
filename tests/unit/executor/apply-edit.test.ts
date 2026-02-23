@@ -7,7 +7,7 @@
 
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { applyEdit } from "../../../src/executor.js";
+import { applyEdit } from "../../../agent/executor.js";
 
 const TEST_TMP_DIR = join(process.cwd(), ".test-tmp-apply-edit");
 

@@ -1,6 +1,6 @@
 .env
 node_modules/
-sessions/
+audit/
 .claude/
 SECURITY.md
 .test-tmp-*/

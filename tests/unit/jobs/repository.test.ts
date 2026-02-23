@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { FileJobRepository } from "../../../src/jobs/repository.js";
+import { FileJobRepository } from "../../../agent/jobs/repository.js";
 
 describe("job repository", () => {
   test("writes markdown summary under jobs/YYYY/MM", () => {

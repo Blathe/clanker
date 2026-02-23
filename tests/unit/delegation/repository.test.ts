@@ -5,7 +5,7 @@ import {
   FileProposalRepository,
   InMemoryProposalRepository,
   type StoredProposalRecord,
-} from "../../../src/delegation/repository.js";
+} from "../../../agent/delegation/repository.js";
 
 function sampleRecord(overrides: Partial<StoredProposalRecord> = {}): StoredProposalRecord {
   return {
@@ -21,12 +21,12 @@ function sampleRecord(overrides: Partial<StoredProposalRecord> = {}): StoredProp
       patchPath: "/tmp/patch.patch",
       changedFiles: ["src/a.ts"],
       diffStat: " src/a.ts | 1 +",
-      diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+      diffPreview: "diff --git../agent/a.ts../agent/a.ts",
       fileDiffs: [
         {
           filePath: "src/a.ts",
           language: "TypeScript",
-          diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;",
+          diff: "diff --git../agent/a.ts../agent/a.ts\n+const a = 1;",
         },
       ],
       delegateSummary: "done",

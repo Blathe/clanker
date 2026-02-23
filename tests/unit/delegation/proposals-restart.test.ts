@@ -1,8 +1,8 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { FileProposalRepository } from "../../../src/delegation/repository.js";
-import { ProposalStore } from "../../../src/delegation/proposals.js";
+import { FileProposalRepository } from "../../../agent/delegation/repository.js";
+import { ProposalStore } from "../../../agent/delegation/proposals.js";
 
 function sampleProposal() {
   return {
@@ -17,12 +17,12 @@ function sampleProposal() {
       patchPath: "/tmp/p-1.patch",
     changedFiles: ["src/a.ts"],
     diffStat: " src/a.ts | 2 +-",
-    diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+    diffPreview: "diff --git../agent/a.ts../agent/a.ts",
     fileDiffs: [
       {
         filePath: "src/a.ts",
         language: "TypeScript",
-        diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;\n",
+        diff: "diff --git../agent/a.ts../agent/a.ts\n+const a = 1;\n",
       },
     ],
     delegateSummary: "Updated file",

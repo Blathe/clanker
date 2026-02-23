@@ -1,4 +1,4 @@
-import { evaluateMergeDecision } from "../../../src/mergeModes.js";
+import { evaluateMergeDecision } from "../../../agent/mergeModes.js";
 
 describe("merge mode evaluation", () => {
   test("strict mode never auto-merges", () => {

@@ -2,7 +2,7 @@
  * Integration tests for policy evaluate() and verifySecret()
  */
 
-import { evaluate, verifySecret, resetPolicyForTest } from "../../../src/policy.js";
+import { evaluate, verifySecret, resetPolicyForTest } from "../../../agent/policy.js";
 
 beforeEach(() => {
   resetPolicyForTest();
@@ -38,10 +38,10 @@ describe("evaluate()", () => {
     expect(result.rule_id).toBe("allow-curl");
   });
 
-  test("blocks sessions dir access", () => {
-    const result = evaluate("cat sessions/foo.jsonl");
+  test("blocks audit dir access", () => {
+    const result = evaluate("cat audit/foo.jsonl");
     expect(result.decision).toBe("blocked");
-    expect(result.rule_id).toBe("block-sessions-dir");
+    expect(result.rule_id).toBe("block-audit-dir");
   });
 
   test("blocks git push", () => {

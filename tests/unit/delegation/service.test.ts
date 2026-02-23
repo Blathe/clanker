@@ -1,5 +1,5 @@
-import { DelegationService } from "../../../src/delegation/service.js";
-import type { PendingProposal } from "../../../src/delegation/proposals.js";
+import { DelegationService } from "../../../agent/delegation/service.js";
+import type { PendingProposal } from "../../../agent/delegation/proposals.js";
 
 function sampleProposal(overrides: Partial<PendingProposal> = {}): PendingProposal {
   return {
@@ -14,12 +14,12 @@ function sampleProposal(overrides: Partial<PendingProposal> = {}): PendingPropos
     patchPath: "/tmp/patch.patch",
     changedFiles: ["src/a.ts"],
     diffStat: " src/a.ts | 1 +",
-    diffPreview: "diff --git a/src/a.ts b/src/a.ts",
+    diffPreview: "diff --git../agent/a.ts../agent/a.ts",
     fileDiffs: [
       {
         filePath: "src/a.ts",
         language: "TypeScript",
-        diff: "diff --git a/src/a.ts b/src/a.ts\n+const a = 1;",
+        diff: "diff --git../agent/a.ts../agent/a.ts\n+const a = 1;",
       },
     ],
     delegateSummary: "done",

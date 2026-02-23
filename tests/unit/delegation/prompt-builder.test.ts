@@ -1,4 +1,4 @@
-import { buildDelegationPrompt } from "../../../src/delegation/promptBuilder.js";
+import { buildDelegationPrompt } from "../../../agent/delegation/promptBuilder.js";
 
 describe("buildDelegationPrompt", () => {
   test("wraps the delegated task in the structured template", () => {
