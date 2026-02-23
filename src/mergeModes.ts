@@ -1,4 +1,4 @@
-import type { RiskLevel } from "./policyV2.js";
+import type { RiskLevel } from "./jobPolicy.js";
 
 export type MergeMode = "Strict" | "Whitelist" | "YOLO";
 
@@ -75,4 +75,3 @@ export function evaluateMergeDecision(input: MergeDecisionInput): MergeDecision 
     reason: "YOLO mode auto-merges any passing job PR",
   };
 }
-

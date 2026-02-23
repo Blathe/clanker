@@ -216,7 +216,8 @@ Delegation control commands are handled in chat as conversational keywords: `pen
 ```
 src/
   types.ts        # Type definitions (ExecuteCommandInput, PolicyVerdict, LLMResponse, etc.)
-  policy.ts       # Policy evaluation engine with rule matching
+  policy.ts       # Shell command policy evaluation against policy.json
+  jobPolicy.ts    # Job risk and approval policy evaluation (R0-R3, owner approval)
   executor.ts     # Command execution via bash
   llm.ts          # OpenAI API wrapper (GPT-4o)
   logger.ts       # Session event logger

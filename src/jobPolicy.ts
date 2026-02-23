@@ -6,12 +6,12 @@ export interface RiskClassification {
   reasons: string[];
 }
 
-export interface PolicyV2Input {
+export interface JobPolicyInput {
   touchedPaths?: string[];
   ownerApproved?: boolean;
 }
 
-export interface PolicyV2Decision {
+export interface JobPolicyDecision {
   riskLevel: RiskLevel;
   allowed: boolean;
   requiresApproval: boolean;
@@ -42,7 +42,7 @@ function maxRisk(a: RiskLevel, b: RiskLevel): RiskLevel {
   return order[a] >= order[b] ? a : b;
 }
 
-export function classifyRiskFromTouchedPaths(paths: string[]): RiskClassification {
+export function classifyJobRiskFromTouchedPaths(paths: string[]): RiskClassification {
   if (paths.length === 0) {
     return { riskLevel: "R0", reasons: ["No write paths touched; classified as read-only"] };
   }
@@ -77,9 +77,9 @@ export function classifyRiskFromTouchedPaths(paths: string[]): RiskClassificatio
   return { riskLevel: highest, reasons };
 }
 
-export function evaluatePolicyV2(input: PolicyV2Input): PolicyV2Decision {
+export function evaluateJobPolicy(input: JobPolicyInput): JobPolicyDecision {
   const touchedPaths = input.touchedPaths ?? [];
-  const risk = classifyRiskFromTouchedPaths(touchedPaths);
+  const risk = classifyJobRiskFromTouchedPaths(touchedPaths);
   const requiresApproval = risk.riskLevel === "R2" || risk.riskLevel === "R3";
   const approvalAuthority: ApprovalAuthority = requiresApproval ? "owner" : "none";
   const allowed = !requiresApproval || Boolean(input.ownerApproved);
@@ -97,4 +97,3 @@ export function evaluatePolicyV2(input: PolicyV2Input): PolicyV2Decision {
     reasons,
   };
 }
-

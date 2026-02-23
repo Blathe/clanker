@@ -503,9 +503,9 @@ Use this section as the build sequence. Each ticket should be completed with TDD
 - **A3:** Add job orchestration service (`src/jobs/service.ts`)
   - Tests: `tests/unit/jobs/service.test.ts`
 
-### Epic B — Policy v2 (risk, approvals, modes)
+### Epic B — Job policy (risk, approvals, modes)
 
-- **B1:** Extend policy decisions with risk levels and owner-approval semantics (`src/policyV2.ts`)
+- **B1:** Extend policy decisions with risk levels and owner-approval semantics (`src/jobPolicy.ts`)
   - Tests: `tests/unit/policy/risk-evaluate.test.ts`
 - **B2:** Implement merge mode enforcement (Strict / Whitelist / YOLO) (`src/mergeModes.ts`)
   - Tests: `tests/unit/policy/merge-modes.test.ts`

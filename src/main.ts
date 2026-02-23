@@ -277,22 +277,21 @@ function trimSessionHistory(history: ChatCompletionMessageParam[]): void {
 
 const sessionManager = new SessionManager({ maxSessions: RUNTIME_CONFIG.maxSessions, systemPrompt: SYSTEM_PROMPT });
 const jobQueue = new JobQueue();
-const orchestratedJobService = new OrchestratedJobService();
-const jobRepository = new FileJobRepository({ rootDir: process.cwd() });
-const auditWriter = new AuditWriter({ rootDir: process.cwd() });
-const githubAdapter = new InMemoryGitHubAdapter({
-  owner: "local",
-  repo: "clanker",
-  defaultBranch: "main",
-  initialFiles: {},
-});
-const jobPrOrchestrator = new JobPrOrchestrator({ adapter: githubAdapter });
-const asyncJobSubmitter = new AsyncJobSubmitter({
-  service: orchestratedJobService,
-  jobRepository,
-  auditWriter,
-  prOrchestrator: jobPrOrchestrator,
-});
+const asyncJobSubmitter = ENABLE_JOB_ORCHESTRATION
+  ? new AsyncJobSubmitter({
+      service: new OrchestratedJobService(),
+      jobRepository: new FileJobRepository({ rootDir: process.cwd() }),
+      auditWriter: new AuditWriter({ rootDir: process.cwd() }),
+      prOrchestrator: new JobPrOrchestrator({
+        adapter: new InMemoryGitHubAdapter({
+          owner: "local",
+          repo: "clanker",
+          defaultBranch: "main",
+          initialFiles: {},
+        }),
+      }),
+    })
+  : null;
 const proposalStore = new ProposalStore(new FileProposalRepository());
 const delegationService = new DelegationService({
   proposalStore,
@@ -391,6 +390,9 @@ async function processTurn(sessionId: string, channel: Channel, userInput: strin
     }
 
     if (ENABLE_JOB_ORCHESTRATION) {
+      if (!asyncJobSubmitter) {
+        throw new Error("Job orchestration is enabled but submitter is unavailable.");
+      }
       await asyncJobSubmitter.submit({
         sessionId,
         channel,

@@ -1,6 +1,6 @@
 import type { Channel, SendFn } from "../runtime.js";
 import type { UserMessagePacket } from "../packets/types.js";
-import { evaluatePolicyV2 } from "../policyV2.js";
+import { evaluateJobPolicy } from "../jobPolicy.js";
 import type { JobPrOrchestrator } from "../github/prOrchestrator.js";
 import { AuditWriter } from "./auditWriter.js";
 import { FileJobRepository } from "./repository.js";
@@ -125,7 +125,7 @@ export class AsyncJobSubmitter {
     });
 
     const touchedPaths = input.proposedTouchedPaths ?? ["/jobs/", "/audit/"];
-    const policy = evaluatePolicyV2({
+    const policy = evaluateJobPolicy({
       touchedPaths,
       ownerApproved: input.ownerApproved,
     });
@@ -216,4 +216,3 @@ export class AsyncJobSubmitter {
     await input.send(completion);
   }
 }
-
