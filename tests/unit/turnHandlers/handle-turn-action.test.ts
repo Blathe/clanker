@@ -22,18 +22,42 @@ jest.mock("../../../agent/logger.js", () => ({
   logSecretVerification: jest.fn(),
   logCommandResult: jest.fn(),
   logEdit: jest.fn(),
-  logDelegate: jest.fn(),
+}));
+
+jest.mock("../../../agent/dispatch/dispatcher.js", () => ({
+  dispatchWorkflow: jest.fn<() => Promise<{ jobId: string; branchName: string; repo: string }>>().mockResolvedValue({
+    jobId: "test-job-id",
+    branchName: "clanker/test-job-id",
+    repo: "owner/repo",
+  }),
+}));
+
+jest.mock("../../../agent/dispatch/poller.js", () => ({
+  startPrPoller: jest.fn(),
 }));
 
 import { handleTurnAction } from "../../../agent/turnHandlers.js";
 import { evaluate, verifySecret } from "../../../agent/policy.js";
 import { runCommand } from "../../../agent/executor.js";
+import { dispatchWorkflow } from "../../../agent/dispatch/dispatcher.js";
+import { startPrPoller } from "../../../agent/dispatch/poller.js";
 import type { LLMResponse } from "../../../agent/types.js";
+import type { DispatchConfig } from "../../../agent/dispatch/types.js";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 
 const mockEvaluate = jest.mocked(evaluate);
 const mockVerifySecret = jest.mocked(verifySecret);
 const mockRunCommand = jest.mocked(runCommand);
+const mockDispatchWorkflow = jest.mocked(dispatchWorkflow);
+const mockStartPrPoller = jest.mocked(startPrPoller);
+
+const testDispatchConfig: DispatchConfig = {
+  provider: "claude",
+  githubToken: "ghp_test",
+  repo: "owner/repo",
+  workflowId: "clanker-delegate-claude.yml",
+  defaultBranch: "main",
+};
 
 function makeCtx(response: LLMResponse, overrides: Record<string, unknown> = {}) {
   const history: ChatCompletionMessageParam[] = [];
@@ -43,11 +67,10 @@ function makeCtx(response: LLMResponse, overrides: Record<string, unknown> = {})
     response,
     history,
     discordUnsafeEnableWrites: false,
-    delegateEnabled: false,
-    jobOrchestrationEnabled: false,
+    dispatchConfig: null as DispatchConfig | null,
+    pollIntervalMs: 30000,
+    pollTimeoutMs: 1800000,
     promptSecret: jest.fn<() => Promise<string>>().mockResolvedValue("mypassphrase"),
-    delegateToClaude: jest.fn<() => Promise<any>>().mockResolvedValue({ exitCode: 0, summary: "done" }),
-    queueDelegate: undefined,
     ...overrides,
   };
 }
@@ -90,20 +113,25 @@ describe("handleTurnAction()", () => {
     expect(ctx.history.some((m) => m.role === "user")).toBe(true);
   });
 
-  test("delegate disabled → sends message and returns continue", async () => {
-    const ctx = makeCtx({ type: "delegate", prompt: "do something", explanation: "delegate task" }, { delegateEnabled: false });
-    const outcome = await handleTurnAction(ctx);
-    expect(outcome).toBe("continue");
-    expect(ctx.send).toHaveBeenCalledWith(expect.stringMatching(/disabled/i));
-  });
-
-  test("delegate enabled without queueDelegate → calls delegateToClaude and returns break", async () => {
+  test("delegate with no dispatchConfig → sends not-configured message and returns continue", async () => {
     const ctx = makeCtx(
       { type: "delegate", prompt: "do something", explanation: "delegate task" },
-      { delegateEnabled: true, queueDelegate: undefined }
+      { dispatchConfig: null }
+    );
+    const outcome = await handleTurnAction(ctx);
+    expect(outcome).toBe("continue");
+    expect(ctx.send).toHaveBeenCalledWith(expect.stringMatching(/not configured/i));
+  });
+
+  test("delegate with dispatchConfig → dispatches workflow and returns break", async () => {
+    const ctx = makeCtx(
+      { type: "delegate", prompt: "do something", explanation: "delegate task" },
+      { dispatchConfig: testDispatchConfig }
     );
     const outcome = await handleTurnAction(ctx);
     expect(outcome).toBe("break");
-    expect(ctx.delegateToClaude).toHaveBeenCalled();
+    expect(mockDispatchWorkflow).toHaveBeenCalledWith(testDispatchConfig, "do something");
+    expect(mockStartPrPoller).toHaveBeenCalled();
+    expect(ctx.send).toHaveBeenCalledWith(expect.stringMatching(/dispatched to github actions/i));
   });
 });

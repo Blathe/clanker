@@ -41,9 +41,6 @@ function main(): void {
   const allowedUsers = parseDiscordIdCsv("DISCORD_ALLOWED_USER_IDS");
   const allowedChannels = parseDiscordIdCsv("DISCORD_ALLOWED_CHANNEL_IDS");
   const discordUnsafeWrites = parseBoolFlag("DISCORD_UNSAFE_ENABLE_WRITES");
-  const delegateEnabled = parseBoolFlag("ENABLE_CLAUDE_DELEGATE");
-  const jobOrchestrationRaw = getEnv("CLANKER_ENABLE_JOB_ORCHESTRATION");
-  const jobOrchestrationEnabled = parseBoolFlag("CLANKER_ENABLE_JOB_ORCHESTRATION");
   const transports = parseTransportsDetailed("CLANKER_TRANSPORTS");
 
   if (allowedUsers.invalid.length > 0) {
@@ -81,26 +78,6 @@ function main(): void {
     printOk("DISCORD_UNSAFE_ENABLE_WRITES is disabled.");
   }
 
-  if (!delegateEnabled.valid) {
-    printFail("ENABLE_CLAUDE_DELEGATE must be one of: 1,true,yes,on,0,false,no,off.");
-    hasFailure = true;
-  } else if (delegateEnabled.enabled) {
-    printOk("ENABLE_CLAUDE_DELEGATE is enabled.");
-  } else {
-    printWarn("ENABLE_CLAUDE_DELEGATE is disabled. Delegate actions will be blocked.");
-  }
-
-  if (jobOrchestrationRaw === undefined) {
-    printOk("CLANKER_ENABLE_JOB_ORCHESTRATION is not set; defaulting to enabled.");
-  } else if (!jobOrchestrationEnabled.valid) {
-    printFail("CLANKER_ENABLE_JOB_ORCHESTRATION must be one of: 1,true,yes,on,0,false,no,off.");
-    hasFailure = true;
-  } else if (jobOrchestrationEnabled.enabled) {
-    printOk("CLANKER_ENABLE_JOB_ORCHESTRATION is enabled.");
-  } else {
-    printWarn("CLANKER_ENABLE_JOB_ORCHESTRATION is disabled. Legacy turn action flow remains active.");
-  }
-
   if (transports.invalid.length > 0) {
     printFail(`CLANKER_TRANSPORTS contains invalid value(s): ${transports.invalid.join(", ")}`);
     hasFailure = true;
@@ -115,6 +92,48 @@ function main(): void {
     } else {
       printOk(`CLANKER_TRANSPORTS enabled: ${enabled.join(", ")}.`);
     }
+  }
+
+  // GitHub Actions delegation validation (only when GITHUB_DELEGATE_PROVIDER is set)
+  const delegateProvider = getEnv("GITHUB_DELEGATE_PROVIDER");
+  if (delegateProvider !== undefined) {
+    if (delegateProvider !== "claude" && delegateProvider !== "codex") {
+      printFail("GITHUB_DELEGATE_PROVIDER must be 'claude' or 'codex'.");
+      hasFailure = true;
+    } else {
+      printOk(`GITHUB_DELEGATE_PROVIDER is set to '${delegateProvider}'.`);
+    }
+
+    const githubToken = getEnv("GITHUB_TOKEN");
+    if (!githubToken) {
+      printFail("GITHUB_TOKEN is required when GITHUB_DELEGATE_PROVIDER is set.");
+      hasFailure = true;
+    } else if (!githubToken.startsWith("ghp_") && !githubToken.startsWith("github_pat_")) {
+      printWarn("GITHUB_TOKEN does not look like a PAT (expected prefix: ghp_ or github_pat_). Verify the value.");
+      printOk("GITHUB_TOKEN is set.");
+    } else {
+      printOk("GITHUB_TOKEN is set.");
+    }
+
+    const workflowId = getEnv("GITHUB_WORKFLOW_ID");
+    if (!workflowId) {
+      printFail("GITHUB_WORKFLOW_ID is required when GITHUB_DELEGATE_PROVIDER is set.");
+      hasFailure = true;
+    } else {
+      printOk(`GITHUB_WORKFLOW_ID is set to '${workflowId}'.`);
+    }
+
+    const githubRepo = getEnv("GITHUB_REPO");
+    if (githubRepo !== undefined && !githubRepo.includes("/")) {
+      printFail("GITHUB_REPO must be in 'owner/repo' format.");
+      hasFailure = true;
+    } else if (githubRepo) {
+      printOk(`GITHUB_REPO is set to '${githubRepo}'.`);
+    } else {
+      printWarn("GITHUB_REPO is not set; will attempt to detect from git remote.");
+    }
+  } else {
+    printWarn("GITHUB_DELEGATE_PROVIDER is not set. GitHub Actions delegation will be disabled.");
   }
 
   const runtimeConfigErrors = validateRuntimeConfigEnv();

@@ -3,20 +3,15 @@ import { evaluate, verifySecret } from "./policy.js";
 import { runCommand, formatResult, applyEdit, validateCommandLength } from "./executor.js";
 import type { LLMResponse } from "./types.js";
 import type { Channel, SendFn } from "./runtime.js";
-import type { DelegateResult } from "./delegation/types.js";
-import { formatDelegateCompletionMessages } from "./delegation/messages.js";
+import type { DispatchConfig } from "./dispatch/types.js";
+import { dispatchWorkflow } from "./dispatch/dispatcher.js";
+import { startPrPoller } from "./dispatch/poller.js";
 import {
   logVerdict,
   logSecretVerification,
   logCommandResult,
   logEdit,
-  logDelegate,
 } from "./logger.js";
-
-export type QueueDelegateResult =
-  | { status: "queued" }
-  | { status: "full" }
-  | { status: "pending"; proposalId: string };
 
 export type TurnActionOutcome = "continue" | "break";
 
@@ -26,16 +21,10 @@ interface TurnActionContext {
   response: LLMResponse;
   history: ChatCompletionMessageParam[];
   discordUnsafeEnableWrites: boolean;
-  delegateEnabled: boolean;
-  jobOrchestrationEnabled?: boolean;
+  dispatchConfig: DispatchConfig | null;
+  pollIntervalMs: number;
+  pollTimeoutMs: number;
   promptSecret: (question: string) => Promise<string>;
-  delegateToClaude: (delegatePrompt: string, workingDir?: string) => Promise<DelegateResult>;
-  queueDelegate?: (
-    prompt: string,
-    workingDir: string | undefined,
-    send: SendFn,
-    history: ChatCompletionMessageParam[]
-  ) => QueueDelegateResult;
 }
 
 function pushUserHistory(history: ChatCompletionMessageParam[], content: string): void {
@@ -51,52 +40,32 @@ async function handleMessageAction(ctx: TurnActionContext): Promise<TurnActionOu
 async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
   if (ctx.response.type !== "delegate") return "continue";
 
-  if (!ctx.delegateEnabled) {
-    await ctx.send("Delegation is disabled in this runtime.");
-    pushUserHistory(ctx.history, "Delegate action denied: delegation is disabled.");
+  if (!ctx.dispatchConfig) {
+    await ctx.send(
+      "Delegation not configured. Set GITHUB_DELEGATE_PROVIDER, GITHUB_TOKEN, GITHUB_WORKFLOW_ID."
+    );
+    pushUserHistory(ctx.history, "Delegate action denied: delegation is not configured.");
     return "continue";
   }
 
-  // Try async queueing if available
-  if (ctx.queueDelegate) {
-    const queued = ctx.queueDelegate(
-      ctx.response.prompt,
-      ctx.response.working_dir,
-      ctx.send,
-      ctx.history
-    );
-    if (queued.status === "full") {
-      await ctx.send("The job queue is full. Please try again shortly.");
-      return "break";
-    }
-    if (queued.status === "pending") {
-      await ctx.send(
-        `A proposal is already pending for this session (${queued.proposalId}). Use pending, accept ${queued.proposalId}, or reject ${queued.proposalId}.`
-      );
-      return "break";
-    }
-
-    await ctx.send(`Queuing task for Claude: ${ctx.response.explanation}\n\nI'll notify you here when it's done. Feel free to keep chatting!`);
-    return "break";
-  }
-
-  // Fallback: synchronous delegation (existing behavior)
-  await ctx.send(ctx.response.explanation);
-  await ctx.send("[DELEGATING TO CLAUDE]");
-
   try {
-    const result = await ctx.delegateToClaude(ctx.response.prompt, ctx.response.working_dir);
-    const { exitCode, summary } = result;
-    logDelegate(exitCode, summary.length);
-    await ctx.send(`[CLAUDE DONE] Exit code: ${exitCode}`);
-    for (const msg of formatDelegateCompletionMessages(result)) {
-      await ctx.send(msg);
-    }
+    const result = await dispatchWorkflow(ctx.dispatchConfig, ctx.response.prompt);
+    startPrPoller({
+      config: ctx.dispatchConfig,
+      branchName: result.branchName,
+      sendFn: ctx.send,
+      channel: ctx.channel,
+      pollIntervalMs: ctx.pollIntervalMs,
+      timeoutMs: ctx.pollTimeoutMs,
+    });
+    await ctx.send(
+      "Dispatched to GitHub Actions. I will notify you with a link to the PR when it's ready."
+    );
     return "break";
   } catch (err) {
     const msg = `[DELEGATE ERROR] ${err}`;
     await ctx.send(msg);
-    pushUserHistory(ctx.history, `Claude failed to run: ${err}`);
+    pushUserHistory(ctx.history, `Delegation dispatch failed: ${err}`);
     return "continue";
   }
 }
@@ -222,15 +191,6 @@ async function handleCommandAction(ctx: TurnActionContext): Promise<TurnActionOu
 }
 
 export async function handleTurnAction(ctx: TurnActionContext): Promise<TurnActionOutcome> {
-  // Legacy direct-action types are blocked when job orchestration mode is on (default).
-  // ctx.jobOrchestrationEnabled defaults to true when omitted.
-  const orchestrationOn = ctx.jobOrchestrationEnabled !== false;
-  if (orchestrationOn && (ctx.response.type === "command" || ctx.response.type === "edit")) {
-    await ctx.send(`Direct ${ctx.response.type} actions are disabled in job orchestration mode.`);
-    pushUserHistory(ctx.history, `${ctx.response.type} action blocked: legacy direct ${ctx.response.type} path disabled.`);
-    return "break";
-  }
-
   switch (ctx.response.type) {
     case "message":
       return handleMessageAction(ctx);

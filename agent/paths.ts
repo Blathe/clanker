@@ -4,7 +4,6 @@ import { join } from "node:path";
 export const DIRS = {
   audit: "audit",
   memory: "memory",
-  jobs: "jobs",
   policies: "policies",
   config: "config",
   skills: "skills",

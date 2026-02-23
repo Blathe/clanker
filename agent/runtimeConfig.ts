@@ -9,16 +9,11 @@ export interface RuntimeConfig {
   maxCommandLength: number;
   maxOutputBytes: number;
   maxActionsPerTurn: number;
-  queueMaxConcurrentJobs: number;
-  delegateProposalTtlMs: number;
-  delegateDiffPreviewMaxLines: number;
-  delegateDiffPreviewMaxChars: number;
-  delegateFileDiffMaxLines: number;
-  delegateFileDiffMaxChars: number;
   loggerMaxOut: number;
   loggerMaxCmd: number;
   loggerMaxMsg: number;
-  defaultClaudeModel: string;
+  dispatchPollIntervalMs: number;
+  dispatchPollTimeoutMs: number;
 }
 
 interface NumericOverride {
@@ -35,15 +30,11 @@ const NUMERIC_OVERRIDES: NumericOverride[] = [
   { name: "CLANKER_MAX_COMMAND_LENGTH", defaultValue: 10000, min: 1 },
   { name: "CLANKER_MAX_OUTPUT_BYTES", defaultValue: 512 * 1024, min: 1 },
   { name: "CLANKER_MAX_ACTIONS_PER_TURN", defaultValue: 8, min: 1 },
-  { name: "CLANKER_QUEUE_MAX_CONCURRENT_JOBS", defaultValue: 10, min: 1 },
-  { name: "CLANKER_DELEGATE_PROPOSAL_TTL_MS", defaultValue: 15 * 60 * 1000, min: 1 },
-  { name: "CLANKER_DELEGATE_DIFF_PREVIEW_MAX_LINES", defaultValue: 80, min: 1 },
-  { name: "CLANKER_DELEGATE_DIFF_PREVIEW_MAX_CHARS", defaultValue: 3000, min: 1 },
-  { name: "CLANKER_DELEGATE_FILE_DIFF_MAX_LINES", defaultValue: 120, min: 1 },
-  { name: "CLANKER_DELEGATE_FILE_DIFF_MAX_CHARS", defaultValue: 1400, min: 1 },
   { name: "CLANKER_LOGGER_MAX_OUT", defaultValue: 500, min: 1 },
   { name: "CLANKER_LOGGER_MAX_CMD", defaultValue: 200, min: 1 },
   { name: "CLANKER_LOGGER_MAX_MSG", defaultValue: 300, min: 1 },
+  { name: "CLANKER_DISPATCH_POLL_INTERVAL_MS", defaultValue: 30000, min: 1 },
+  { name: "CLANKER_DISPATCH_POLL_TIMEOUT_MS", defaultValue: 1800000, min: 1 },
 ];
 
 function parsePositiveInteger(
@@ -124,16 +115,11 @@ export function buildRuntimeConfig(
     maxCommandLength: getRequired(values, "CLANKER_MAX_COMMAND_LENGTH"),
     maxOutputBytes: getRequired(values, "CLANKER_MAX_OUTPUT_BYTES"),
     maxActionsPerTurn: getRequired(values, "CLANKER_MAX_ACTIONS_PER_TURN"),
-    queueMaxConcurrentJobs: getRequired(values, "CLANKER_QUEUE_MAX_CONCURRENT_JOBS"),
-    delegateProposalTtlMs: getRequired(values, "CLANKER_DELEGATE_PROPOSAL_TTL_MS"),
-    delegateDiffPreviewMaxLines: getRequired(values, "CLANKER_DELEGATE_DIFF_PREVIEW_MAX_LINES"),
-    delegateDiffPreviewMaxChars: getRequired(values, "CLANKER_DELEGATE_DIFF_PREVIEW_MAX_CHARS"),
-    delegateFileDiffMaxLines: getRequired(values, "CLANKER_DELEGATE_FILE_DIFF_MAX_LINES"),
-    delegateFileDiffMaxChars: getRequired(values, "CLANKER_DELEGATE_FILE_DIFF_MAX_CHARS"),
     loggerMaxOut: getRequired(values, "CLANKER_LOGGER_MAX_OUT"),
     loggerMaxCmd: getRequired(values, "CLANKER_LOGGER_MAX_CMD"),
     loggerMaxMsg: getRequired(values, "CLANKER_LOGGER_MAX_MSG"),
-    defaultClaudeModel: "claude-sonnet-4-6",
+    dispatchPollIntervalMs: getRequired(values, "CLANKER_DISPATCH_POLL_INTERVAL_MS"),
+    dispatchPollTimeoutMs: getRequired(values, "CLANKER_DISPATCH_POLL_TIMEOUT_MS"),
   };
 }
 
