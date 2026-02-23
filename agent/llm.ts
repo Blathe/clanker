@@ -8,7 +8,7 @@ import { getRuntimeConfig } from "./runtimeConfig.js";
  * Validates OpenAI API key format
  * OpenAI keys must start with "sk-"
  */
-function validateOpenAIKey(key: string | undefined): { valid: boolean; error: string | null } {
+export function validateOpenAIKey(key: string | undefined): { valid: boolean; error: string | null } {
   if (!key) {
     return { valid: false, error: "OPENAI_API_KEY is not set" };
   }
