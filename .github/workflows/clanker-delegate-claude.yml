@@ -50,7 +50,7 @@ jobs:
           additional_permissions: |
             actions: read
           claude_args: |
-            --model claude-opus-4-6
+            --model claude-sonnet-4-6
             --max-turns 10
             --allowedTools "Read,LS,Glob,Grep,Edit,MultiEdit,Write"
 
@@ -66,7 +66,7 @@ jobs:
           additional_permissions: |
             actions: read
           claude_args: |
-            --model claude-opus-4-6
+            --model claude-sonnet-4-6
             --max-turns 10
             --allowedTools "Read,LS,Glob,Grep,Edit,MultiEdit,Write"
 
