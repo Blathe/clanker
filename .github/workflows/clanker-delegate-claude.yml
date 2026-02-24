@@ -20,6 +20,7 @@ jobs:
           fetch-depth: 1
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         env:
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_DELEGATE_PROVIDER: ${{ secrets.GH_DELEGATE_PROVIDER }}
@@ -31,3 +32,30 @@ jobs:
           prompt: ${{ inputs.prompt }}
           claude_args: '--model claude-opus-4-6 --max-turns 10'
           display_report: 'true'
+
+      - name: Create PR if needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Check if branch exists on remote
+          if git fetch origin "${{ inputs.branch_name }}" 2>/dev/null; then
+            echo "Branch exists, checking if PR already created..."
+            # Check if PR exists for this branch
+            PR_COUNT=$(gh pr list --head "${{ inputs.branch_name }}" --json number -q '.[0].number' 2>/dev/null | wc -l)
+            if [ "$PR_COUNT" -eq 0 ]; then
+              echo "Creating PR for ${{ inputs.branch_name }}..."
+              gh pr create \
+                --base master \
+                --head "${{ inputs.branch_name }}" \
+                --title "Claude: ${{ inputs.prompt }}" \
+                --body "**Prompt:** ${{ inputs.prompt }}
+
+This PR was created by Claude Code based on the delegation prompt above.
+
+Please review the changes and approve or request modifications."
+            else
+              echo "PR already exists for this branch"
+            fi
+          else
+            echo "Branch ${{ inputs.branch_name }} does not exist on remote"
+          fi
