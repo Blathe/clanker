@@ -2,7 +2,7 @@
 export type LLMResponse =
   | { type: "command"; command: string; working_dir?: string; explanation: string }
   | { type: "edit"; file: string; old: string; new: string; explanation: string }
-  | { type: "delegate"; prompt: string; working_dir?: string; explanation: string }
+  | { type: "delegate"; prompt: string; repo: string; working_dir?: string; explanation: string }
   | { type: "message"; explanation: string };
 
 // Input passed to the executor

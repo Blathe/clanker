@@ -142,7 +142,7 @@ export function loadLastSession(sessionsDir?: string): string {
   );
 }
 
-export function loadRuntimePromptContext(runtimeLabel: string): { systemPrompt: string; lastSession: string } {
+export function loadRuntimePromptContext(runtimeLabel: string, approvedRepos?: string[]): { systemPrompt: string; lastSession: string } {
   const soul = loadSoul();
   const memory = loadMemory();
   const lastSession = loadLastSession();
@@ -154,6 +154,7 @@ export function loadRuntimePromptContext(runtimeLabel: string): { systemPrompt: 
     memory,
     lastSession,
     templates,
+    approvedRepos,
   });
 
   return { systemPrompt, lastSession };

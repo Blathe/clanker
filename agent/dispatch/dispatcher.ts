@@ -2,12 +2,16 @@ import type { DispatchConfig, DispatchResult } from "./types.js";
 
 export async function dispatchWorkflow(
   config: DispatchConfig,
-  prompt: string
+  prompt: string,
+  repoOverride?: string
 ): Promise<DispatchResult> {
   const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const branchName = `clanker/${jobId}`;
 
-  const url = `https://api.github.com/repos/${config.repo}/actions/workflows/${config.workflowId}/dispatches`;
+  // Use repoOverride if provided, otherwise fall back to config.repo
+  const effectiveRepo = repoOverride ?? config.repo;
+
+  const url = `https://api.github.com/repos/${effectiveRepo}/actions/workflows/${config.workflowId}/dispatches`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -30,5 +34,5 @@ export async function dispatchWorkflow(
     );
   }
 
-  return { jobId, branchName, repo: config.repo };
+  return { jobId, branchName, repo: effectiveRepo };
 }

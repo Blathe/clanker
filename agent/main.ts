@@ -98,8 +98,8 @@ const runtimeLabel =
     : process.platform === "darwin"
       ? "the user's macOS machine"
       : "a Linux environment";
-const { systemPrompt: SYSTEM_PROMPT, lastSession: LAST_SESSION } = loadRuntimePromptContext(runtimeLabel);
 const DISPATCH_CONFIG = loadDispatchConfig();
+const { systemPrompt: SYSTEM_PROMPT, lastSession: LAST_SESSION } = loadRuntimePromptContext(runtimeLabel, DISPATCH_CONFIG?.approvedRepos);
 
 /**
  * Trims session history to prevent unbounded memory growth in long-running sessions.

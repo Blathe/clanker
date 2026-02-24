@@ -59,13 +59,29 @@ export function composeSystemPromptFromTemplates(input: {
   memory: string;
   lastSession: string;
   templates: PromptTemplates;
+  approvedRepos?: string[];
 }): string {
   const core = renderPromptTemplate(input.templates.systemCore, {
     runtimeLabel: input.runtimeLabel,
   });
+
+  // Build approved repos section if provided
+  let approvedReposSection = "";
+  if (input.approvedRepos && input.approvedRepos.length > 0) {
+    const repoList = input.approvedRepos.map((r) => `- ${r}`).join("\n");
+    approvedReposSection = `## Available Repositories
+
+You MUST always include a "repo" field when using the delegate action.
+If the user has not specified which repo to target, respond with a message asking them to clarify.
+Approved repositories:
+${repoList}
+
+`;
+  }
+
   const sections = [core, input.templates.actionContract, input.templates.routing]
     .map((s) => s.trim())
     .filter(Boolean)
     .join("\n\n");
-  return `${input.soul}${input.memory}${input.lastSession}${sections}`;
+  return `${input.soul}${input.memory}${approvedReposSection}${input.lastSession}${sections}`;
 }

@@ -42,6 +42,7 @@ const EditResponseSchema = z.object({
 const DelegateResponseSchema = z.object({
   type: z.literal("delegate"),
   prompt: z.string().min(1),
+  repo: z.string().min(1),
   working_dir: z.string().optional(),
   explanation: z.string(),
 });

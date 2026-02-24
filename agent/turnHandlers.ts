@@ -48,10 +48,27 @@ async function handleDelegateAction(ctx: TurnActionContext): Promise<TurnActionO
     return "continue";
   }
 
+  // Validate required repo field
+  const requestedRepo = ctx.response.repo;
+  if (!requestedRepo) {
+    await ctx.send("Delegation requires a target repository. Please clarify which repo to use.");
+    pushUserHistory(ctx.history, "Delegate rejected: no repo specified.");
+    return "continue";
+  }
+
+  // Validate repo is in approved list
+  if (!ctx.dispatchConfig.approvedRepos.includes(requestedRepo)) {
+    await ctx.send(`Repo "${requestedRepo}" is not in the approved list. Approved: ${ctx.dispatchConfig.approvedRepos.join(", ")}`);
+    pushUserHistory(ctx.history, `Delegate rejected: repo "${requestedRepo}" is not approved.`);
+    return "continue";
+  }
+
   try {
-    const result = await dispatchWorkflow(ctx.dispatchConfig, ctx.response.prompt);
+    const result = await dispatchWorkflow(ctx.dispatchConfig, ctx.response.prompt, requestedRepo);
+    // Use result.repo in poller config to ensure we target the correct repo
+    const pollerConfig = { ...ctx.dispatchConfig, repo: result.repo };
     startPrPoller({
-      config: ctx.dispatchConfig,
+      config: pollerConfig,
       branchName: result.branchName,
       sendFn: ctx.send,
       channel: ctx.channel,

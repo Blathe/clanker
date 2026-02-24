@@ -3,6 +3,7 @@ import {
   parseDiscordIdCsv,
   parseBoolFlag,
   parseTransportsDetailed,
+  parseCsvList,
 } from "./config.js";
 import { validateRuntimeConfigEnv } from "./runtimeConfig.js";
 
@@ -131,6 +132,21 @@ function main(): void {
       printOk(`GITHUB_REPO is set to '${githubRepo}'.`);
     } else {
       printWarn("GITHUB_REPO is not set; will attempt to detect from git remote.");
+    }
+
+    // Validate GITHUB_REPOS if set
+    const githubRepos = getEnv("GITHUB_REPOS");
+    if (githubRepos) {
+      const repos = parseCsvList(githubRepos);
+      const invalid = repos.filter((r) => !r.includes("/"));
+      if (invalid.length > 0) {
+        printFail(`GITHUB_REPOS contains invalid repo(s): ${invalid.join(", ")}. Each must be in 'owner/repo' format.`);
+        hasFailure = true;
+      } else {
+        printOk(`GITHUB_REPOS is set (${repos.length} repo(s)).`);
+      }
+    } else {
+      printWarn("GITHUB_REPOS is not set. Only the default repo will be approved for delegation.");
     }
   } else {
     printWarn("GITHUB_DELEGATE_PROVIDER is not set. GitHub Actions delegation will be disabled.");

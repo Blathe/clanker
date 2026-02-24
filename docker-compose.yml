@@ -12,6 +12,7 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       GITHUB_WORKFLOW_ID: ${GITHUB_WORKFLOW_ID}
       GITHUB_REPO: ${GITHUB_REPO}
+      GITHUB_REPOS: ${GITHUB_REPOS}
       CLANKER_TRANSPORTS: discord
     volumes:
       - ./audit:/app/audit

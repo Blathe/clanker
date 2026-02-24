@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import type { DispatchConfig } from "./types.js";
+import { getEnv, parseCsvList } from "../config.js";
 
 function detectRepo(): string | null {
   try {
@@ -15,21 +16,25 @@ function detectRepo(): string | null {
 }
 
 export function loadDispatchConfig(): DispatchConfig | null {
-  const provider = process.env["GITHUB_DELEGATE_PROVIDER"];
+  const provider = getEnv("GITHUB_DELEGATE_PROVIDER");
   if (!provider) return null;
 
   if (provider !== "claude" && provider !== "codex") return null;
 
-  const githubToken = process.env["GITHUB_TOKEN"];
+  const githubToken = getEnv("GITHUB_TOKEN");
   if (!githubToken) return null;
 
-  const workflowId = process.env["GITHUB_WORKFLOW_ID"];
+  const workflowId = getEnv("GITHUB_WORKFLOW_ID");
   if (!workflowId) return null;
 
-  const repo = process.env["GITHUB_REPO"] ?? detectRepo() ?? "";
+  const repo = getEnv("GITHUB_REPO") ?? detectRepo() ?? "";
   if (!repo) return null;
 
-  const defaultBranch = process.env["GITHUB_DEFAULT_BRANCH"] ?? "main";
+  const defaultBranch = getEnv("GITHUB_DEFAULT_BRANCH") ?? "main";
 
-  return { provider, githubToken, repo, workflowId, defaultBranch };
+  // Parse approved repos: if GITHUB_REPOS is set, use it; otherwise, just the default repo
+  const githubReposEnv = getEnv("GITHUB_REPOS");
+  const approvedRepos = githubReposEnv ? parseCsvList(githubReposEnv) : [repo];
+
+  return { provider, githubToken, repo, workflowId, defaultBranch, approvedRepos };
 }

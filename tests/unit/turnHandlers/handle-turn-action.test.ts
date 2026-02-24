@@ -25,7 +25,7 @@ jest.mock("../../../agent/logger.js", () => ({
 }));
 
 jest.mock("../../../agent/dispatch/dispatcher.js", () => ({
-  dispatchWorkflow: jest.fn<() => Promise<{ jobId: string; branchName: string; repo: string }>>().mockResolvedValue({
+  dispatchWorkflow: jest.fn<(config: any, prompt: string, repoOverride?: string) => Promise<{ jobId: string; branchName: string; repo: string }>>().mockResolvedValue({
     jobId: "test-job-id",
     branchName: "clanker/test-job-id",
     repo: "owner/repo",
@@ -57,6 +57,7 @@ const testDispatchConfig: DispatchConfig = {
   repo: "owner/repo",
   workflowId: "clanker-delegate-claude.yml",
   defaultBranch: "main",
+  approvedRepos: ["owner/repo", "owner/foo", "owner/bar"],
 };
 
 function makeCtx(response: LLMResponse, overrides: Record<string, unknown> = {}) {
@@ -115,7 +116,7 @@ describe("handleTurnAction()", () => {
 
   test("delegate with no dispatchConfig → sends not-configured message and returns continue", async () => {
     const ctx = makeCtx(
-      { type: "delegate", prompt: "do something", explanation: "delegate task" },
+      { type: "delegate", prompt: "do something", repo: "owner/repo", explanation: "delegate task" },
       { dispatchConfig: null }
     );
     const outcome = await handleTurnAction(ctx);
@@ -123,15 +124,47 @@ describe("handleTurnAction()", () => {
     expect(ctx.send).toHaveBeenCalledWith(expect.stringMatching(/not configured/i));
   });
 
-  test("delegate with dispatchConfig → dispatches workflow and returns break", async () => {
+  test("delegate with dispatchConfig and approved repo → dispatches workflow and returns break", async () => {
     const ctx = makeCtx(
-      { type: "delegate", prompt: "do something", explanation: "delegate task" },
+      { type: "delegate", prompt: "do something", repo: "owner/repo", explanation: "delegate task" },
       { dispatchConfig: testDispatchConfig }
     );
     const outcome = await handleTurnAction(ctx);
     expect(outcome).toBe("break");
-    expect(mockDispatchWorkflow).toHaveBeenCalledWith(testDispatchConfig, "do something");
+    expect(mockDispatchWorkflow).toHaveBeenCalledWith(testDispatchConfig, "do something", "owner/repo");
     expect(mockStartPrPoller).toHaveBeenCalled();
     expect(ctx.send).toHaveBeenCalledWith(expect.stringMatching(/dispatched to github actions/i));
+  });
+
+  test("delegate with repo in approved list → dispatches to that repo", async () => {
+    const ctx = makeCtx(
+      { type: "delegate", prompt: "do something", repo: "owner/foo", explanation: "delegate task" },
+      { dispatchConfig: testDispatchConfig }
+    );
+    const outcome = await handleTurnAction(ctx);
+    expect(outcome).toBe("break");
+    expect(mockDispatchWorkflow).toHaveBeenCalledWith(testDispatchConfig, "do something", "owner/foo");
+  });
+
+  test("delegate with repo NOT in approved list → sends error and returns continue", async () => {
+    const ctx = makeCtx(
+      { type: "delegate", prompt: "do something", repo: "owner/unapproved", explanation: "delegate task" },
+      { dispatchConfig: testDispatchConfig }
+    );
+    const outcome = await handleTurnAction(ctx);
+    expect(outcome).toBe("continue");
+    expect(mockDispatchWorkflow).not.toHaveBeenCalled();
+    expect(ctx.send).toHaveBeenCalledWith(expect.stringMatching(/not in the approved list/i));
+  });
+
+  test("delegate with no repo (empty string) → sends clarification message and returns continue", async () => {
+    const ctx = makeCtx(
+      { type: "delegate", prompt: "do something", repo: "", explanation: "delegate task" },
+      { dispatchConfig: testDispatchConfig }
+    );
+    const outcome = await handleTurnAction(ctx);
+    expect(outcome).toBe("continue");
+    expect(mockDispatchWorkflow).not.toHaveBeenCalled();
+    expect(ctx.send).toHaveBeenCalledWith(expect.stringMatching(/clarify which repo/i));
   });
 });
