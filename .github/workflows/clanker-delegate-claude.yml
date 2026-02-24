@@ -64,7 +64,8 @@ jobs:
           prompt: ${{ github.event.inputs.prompt }}
           branch_name_template: ${{ github.event.inputs.branch_name }}
           additional_permissions: |
-            actions: read
+            actions: write
+          display_report: 'false'
           claude_args: |
             --model claude-sonnet-4-6
             --max-turns 10
