@@ -17,9 +17,13 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: anthropics/claude-code-action@v1
         with:
           prompt: ${{ inputs.prompt }}
-          branch: ${{ inputs.branch_name }}
+          branch_name_template: ${{ inputs.branch_name }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          base_branch: master
+          additional_permissions: "write"
