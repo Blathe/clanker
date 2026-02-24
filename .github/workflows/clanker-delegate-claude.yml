@@ -11,7 +11,7 @@ on:
     types: [submitted]
 
 jobs:
-  code change:
+  claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
@@ -30,9 +30,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: anthropics/claude-code-action@v1
+      - name: Run Claude Code
         id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: ${{ inputs.prompt }}
-          claude_args: '--model claude-opus-4-6 --max-turns 10'
-          display_report: 'true'
+          claude_args: |
+            --model claude-opus-4-6
+            --max-turns 10
