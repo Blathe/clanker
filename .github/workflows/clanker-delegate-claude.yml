@@ -48,11 +48,7 @@ jobs:
                 --base master \
                 --head "${{ inputs.branch_name }}" \
                 --title "Claude: ${{ inputs.prompt }}" \
-                --body "**Prompt:** ${{ inputs.prompt }}
-
-This PR was created by Claude Code based on the delegation prompt above.
-
-Please review the changes and approve or request modifications."
+                --body "**Prompt:** ${{ inputs.prompt }}\n\nThis PR was created by Claude Code based on the delegation prompt above.\n\nPlease review the changes and approve or request modifications."
             else
               echo "PR already exists for this branch"
             fi
