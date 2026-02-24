@@ -18,48 +18,48 @@ describe("loadDispatchConfig()", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Clear env vars
-    delete process.env.GITHUB_DELEGATE_PROVIDER;
-    delete process.env.GITHUB_TOKEN;
-    delete process.env.GITHUB_WORKFLOW_ID;
-    delete process.env.GITHUB_REPO;
-    delete process.env.GITHUB_DEFAULT_BRANCH;
-    delete process.env.GITHUB_REPOS;
+    delete process.env.GH_DELEGATE_PROVIDER;
+    delete process.env.GH_TOKEN;
+    delete process.env.GH_WORKFLOW_ID;
+    delete process.env.GH_REPO;
+    delete process.env.GH_DEFAULT_BRANCH;
+    delete process.env.GH_REPOS;
   });
 
   afterEach(() => {
     // Clean up env vars after each test
-    delete process.env.GITHUB_DELEGATE_PROVIDER;
-    delete process.env.GITHUB_TOKEN;
-    delete process.env.GITHUB_WORKFLOW_ID;
-    delete process.env.GITHUB_REPO;
-    delete process.env.GITHUB_DEFAULT_BRANCH;
-    delete process.env.GITHUB_REPOS;
+    delete process.env.GH_DELEGATE_PROVIDER;
+    delete process.env.GH_TOKEN;
+    delete process.env.GH_WORKFLOW_ID;
+    delete process.env.GH_REPO;
+    delete process.env.GH_DEFAULT_BRANCH;
+    delete process.env.GH_REPOS;
   });
 
-  test("returns null when GITHUB_DELEGATE_PROVIDER is not set", () => {
+  test("returns null when GH_DELEGATE_PROVIDER is not set", () => {
     const result = loadDispatchConfig();
     expect(result).toBeNull();
   });
 
-  test("returns null when GITHUB_DELEGATE_PROVIDER is invalid", () => {
-    process.env.GITHUB_DELEGATE_PROVIDER = "invalid";
+  test("returns null when GH_DELEGATE_PROVIDER is invalid", () => {
+    process.env.GH_DELEGATE_PROVIDER = "invalid";
     const result = loadDispatchConfig();
     expect(result).toBeNull();
   });
 
   test("returns null when required fields are missing", () => {
-    process.env.GITHUB_DELEGATE_PROVIDER = "claude";
-    // Missing GITHUB_TOKEN and GITHUB_WORKFLOW_ID
+    process.env.GH_DELEGATE_PROVIDER = "claude";
+    // Missing GH_TOKEN and GH_WORKFLOW_ID
     const result = loadDispatchConfig();
     expect(result).toBeNull();
   });
 
-  test("GITHUB_REPOS not set → approvedRepos equals [repo]", () => {
-    process.env.GITHUB_DELEGATE_PROVIDER = "claude";
-    process.env.GITHUB_TOKEN = "ghp_test";
-    process.env.GITHUB_WORKFLOW_ID = "clanker-delegate-claude.yml";
-    process.env.GITHUB_REPO = "owner/repo";
-    process.env.GITHUB_DEFAULT_BRANCH = "main";
+  test("GH_REPOS not set → approvedRepos equals [repo]", () => {
+    process.env.GH_DELEGATE_PROVIDER = "claude";
+    process.env.GH_TOKEN = "ghp_test";
+    process.env.GH_WORKFLOW_ID = "clanker-delegate-claude.yml";
+    process.env.GH_REPO = "owner/repo";
+    process.env.GH_DEFAULT_BRANCH = "main";
     mockExecSync.mockReturnValue("");
 
     const result = loadDispatchConfig();
@@ -70,13 +70,13 @@ describe("loadDispatchConfig()", () => {
     }
   });
 
-  test("GITHUB_REPOS=owner/a,owner/b → approvedRepos = [owner/a, owner/b]", () => {
-    process.env.GITHUB_DELEGATE_PROVIDER = "claude";
-    process.env.GITHUB_TOKEN = "ghp_test";
-    process.env.GITHUB_WORKFLOW_ID = "clanker-delegate-claude.yml";
-    process.env.GITHUB_REPO = "owner/default";
-    process.env.GITHUB_DEFAULT_BRANCH = "main";
-    process.env.GITHUB_REPOS = "owner/a,owner/b";
+  test("GH_REPOS=owner/a,owner/b → approvedRepos = [owner/a, owner/b]", () => {
+    process.env.GH_DELEGATE_PROVIDER = "claude";
+    process.env.GH_TOKEN = "ghp_test";
+    process.env.GH_WORKFLOW_ID = "clanker-delegate-claude.yml";
+    process.env.GH_REPO = "owner/default";
+    process.env.GH_DEFAULT_BRANCH = "main";
+    process.env.GH_REPOS = "owner/a,owner/b";
     mockExecSync.mockReturnValue("");
 
     const result = loadDispatchConfig();
@@ -86,13 +86,13 @@ describe("loadDispatchConfig()", () => {
     }
   });
 
-  test("GITHUB_REPOS with spaces is trimmed correctly", () => {
-    process.env.GITHUB_DELEGATE_PROVIDER = "claude";
-    process.env.GITHUB_TOKEN = "ghp_test";
-    process.env.GITHUB_WORKFLOW_ID = "clanker-delegate-claude.yml";
-    process.env.GITHUB_REPO = "owner/default";
-    process.env.GITHUB_DEFAULT_BRANCH = "main";
-    process.env.GITHUB_REPOS = "owner/foo , owner/bar , owner/baz";
+  test("GH_REPOS with spaces is trimmed correctly", () => {
+    process.env.GH_DELEGATE_PROVIDER = "claude";
+    process.env.GH_TOKEN = "ghp_test";
+    process.env.GH_WORKFLOW_ID = "clanker-delegate-claude.yml";
+    process.env.GH_REPO = "owner/default";
+    process.env.GH_DEFAULT_BRANCH = "main";
+    process.env.GH_REPOS = "owner/foo , owner/bar , owner/baz";
     mockExecSync.mockReturnValue("");
 
     const result = loadDispatchConfig();
@@ -103,11 +103,11 @@ describe("loadDispatchConfig()", () => {
   });
 
   test("provider can be codex", () => {
-    process.env.GITHUB_DELEGATE_PROVIDER = "codex";
-    process.env.GITHUB_TOKEN = "ghp_test";
-    process.env.GITHUB_WORKFLOW_ID = "clanker-delegate-codex.yml";
-    process.env.GITHUB_REPO = "owner/repo";
-    process.env.GITHUB_DEFAULT_BRANCH = "main";
+    process.env.GH_DELEGATE_PROVIDER = "codex";
+    process.env.GH_TOKEN = "ghp_test";
+    process.env.GH_WORKFLOW_ID = "clanker-delegate-codex.yml";
+    process.env.GH_REPO = "owner/repo";
+    process.env.GH_DEFAULT_BRANCH = "main";
     mockExecSync.mockReturnValue("");
 
     const result = loadDispatchConfig();

@@ -216,7 +216,7 @@ function printStartupBanner(): void {
   ];
   console.log(`Enabled transports: ${enabledTransports.join(", ")}`);
   if (!DISPATCH_CONFIG) {
-    console.log("GitHub Actions delegation is not configured (GITHUB_DELEGATE_PROVIDER, GITHUB_TOKEN, GITHUB_WORKFLOW_ID not set).");
+    console.log("GitHub Actions delegation is not configured (GH_DELEGATE_PROVIDER, GH_TOKEN, GH_WORKFLOW_ID not set).");
   } else {
     console.log(`GitHub Actions delegation enabled: provider=${DISPATCH_CONFIG.provider}, repo=${DISPATCH_CONFIG.repo}`);
   }

@@ -95,61 +95,61 @@ function main(): void {
     }
   }
 
-  // GitHub Actions delegation validation (only when GITHUB_DELEGATE_PROVIDER is set)
-  const delegateProvider = getEnv("GITHUB_DELEGATE_PROVIDER");
+  // GitHub Actions delegation validation (only when GH_DELEGATE_PROVIDER is set)
+  const delegateProvider = getEnv("GH_DELEGATE_PROVIDER");
   if (delegateProvider !== undefined) {
     if (delegateProvider !== "claude" && delegateProvider !== "codex") {
-      printFail("GITHUB_DELEGATE_PROVIDER must be 'claude' or 'codex'.");
+      printFail("GH_DELEGATE_PROVIDER must be 'claude' or 'codex'.");
       hasFailure = true;
     } else {
-      printOk(`GITHUB_DELEGATE_PROVIDER is set to '${delegateProvider}'.`);
+      printOk(`GH_DELEGATE_PROVIDER is set to '${delegateProvider}'.`);
     }
 
-    const githubToken = getEnv("GITHUB_TOKEN");
-    if (!githubToken) {
-      printFail("GITHUB_TOKEN is required when GITHUB_DELEGATE_PROVIDER is set.");
+    const ghToken = getEnv("GH_TOKEN");
+    if (!ghToken) {
+      printFail("GH_TOKEN is required when GH_DELEGATE_PROVIDER is set.");
       hasFailure = true;
-    } else if (!githubToken.startsWith("ghp_") && !githubToken.startsWith("github_pat_")) {
-      printWarn("GITHUB_TOKEN does not look like a PAT (expected prefix: ghp_ or github_pat_). Verify the value.");
-      printOk("GITHUB_TOKEN is set.");
+    } else if (!ghToken.startsWith("ghp_") && !ghToken.startsWith("github_pat_")) {
+      printWarn("GH_TOKEN does not look like a PAT (expected prefix: ghp_ or github_pat_). Verify the value.");
+      printOk("GH_TOKEN is set.");
     } else {
-      printOk("GITHUB_TOKEN is set.");
+      printOk("GH_TOKEN is set.");
     }
 
-    const workflowId = getEnv("GITHUB_WORKFLOW_ID");
+    const workflowId = getEnv("GH_WORKFLOW_ID");
     if (!workflowId) {
-      printFail("GITHUB_WORKFLOW_ID is required when GITHUB_DELEGATE_PROVIDER is set.");
+      printFail("GH_WORKFLOW_ID is required when GH_DELEGATE_PROVIDER is set.");
       hasFailure = true;
     } else {
-      printOk(`GITHUB_WORKFLOW_ID is set to '${workflowId}'.`);
+      printOk(`GH_WORKFLOW_ID is set to '${workflowId}'.`);
     }
 
-    const githubRepo = getEnv("GITHUB_REPO");
-    if (githubRepo !== undefined && !githubRepo.includes("/")) {
-      printFail("GITHUB_REPO must be in 'owner/repo' format.");
+    const ghRepo = getEnv("GH_REPO");
+    if (ghRepo !== undefined && !ghRepo.includes("/")) {
+      printFail("GH_REPO must be in 'owner/repo' format.");
       hasFailure = true;
-    } else if (githubRepo) {
-      printOk(`GITHUB_REPO is set to '${githubRepo}'.`);
+    } else if (ghRepo) {
+      printOk(`GH_REPO is set to '${ghRepo}'.`);
     } else {
-      printWarn("GITHUB_REPO is not set; will attempt to detect from git remote.");
+      printWarn("GH_REPO is not set; will attempt to detect from git remote.");
     }
 
-    // Validate GITHUB_REPOS if set
-    const githubRepos = getEnv("GITHUB_REPOS");
-    if (githubRepos) {
-      const repos = parseCsvList(githubRepos);
+    // Validate GH_REPOS if set
+    const ghRepos = getEnv("GH_REPOS");
+    if (ghRepos) {
+      const repos = parseCsvList(ghRepos);
       const invalid = repos.filter((r) => !r.includes("/"));
       if (invalid.length > 0) {
-        printFail(`GITHUB_REPOS contains invalid repo(s): ${invalid.join(", ")}. Each must be in 'owner/repo' format.`);
+        printFail(`GH_REPOS contains invalid repo(s): ${invalid.join(", ")}. Each must be in 'owner/repo' format.`);
         hasFailure = true;
       } else {
-        printOk(`GITHUB_REPOS is set (${repos.length} repo(s)).`);
+        printOk(`GH_REPOS is set (${repos.length} repo(s)).`);
       }
     } else {
-      printWarn("GITHUB_REPOS is not set. Only the default repo will be approved for delegation.");
+      printWarn("GH_REPOS is not set. Only the default repo will be approved for delegation.");
     }
   } else {
-    printWarn("GITHUB_DELEGATE_PROVIDER is not set. GitHub Actions delegation will be disabled.");
+    printWarn("GH_DELEGATE_PROVIDER is not set. GitHub Actions delegation will be disabled.");
   }
 
   const runtimeConfigErrors = validateRuntimeConfigEnv();

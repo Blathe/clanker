@@ -111,7 +111,7 @@ The agent responds in one of four structured formats:
 
 ## Delegation via GitHub Actions
 
-When `GITHUB_DELEGATE_PROVIDER`, `GITHUB_TOKEN`, and `GITHUB_WORKFLOW_ID` are configured, the `delegate` action triggers a `workflow_dispatch` event on GitHub Actions. No code runs in-process — all AI execution happens on GitHub's infrastructure.
+When `GH_DELEGATE_PROVIDER`, `GH_TOKEN`, and `GH_WORKFLOW_ID` are configured, the `delegate` action triggers a `workflow_dispatch` event on GitHub Actions. No code runs in-process — all AI execution happens on GitHub's infrastructure.
 
 **Flow:**
 1. User asks Clanker to delegate a task
@@ -123,12 +123,12 @@ When `GITHUB_DELEGATE_PROVIDER`, `GITHUB_TOKEN`, and `GITHUB_WORKFLOW_ID` are co
 **Setup:**
 
 ```bash
-export GITHUB_DELEGATE_PROVIDER=claude           # or codex
-export GITHUB_TOKEN=ghp_your-github-pat          # needs contents:write, pull-requests:write
-export GITHUB_WORKFLOW_ID=clanker-delegate-claude.yml
+export GH_DELEGATE_PROVIDER=claude           # or codex
+export GH_TOKEN=ghp_your-github-pat          # needs contents:write, pull-requests:write
+export GH_WORKFLOW_ID=clanker-delegate-claude.yml
 # Optional — auto-detected from git remote if not set:
-export GITHUB_REPO=owner/repo
-export GITHUB_DEFAULT_BRANCH=main
+export GH_REPO=owner/repo
+export GH_DEFAULT_BRANCH=main
 ```
 
 Workflow templates are provided in `.github/workflows/`. Add them to your repository and configure `ANTHROPIC_API_KEY` (for Claude) or `OPENAI_API_KEY` (for Codex) as GitHub Actions secrets.
@@ -174,11 +174,11 @@ Update the hash in `policy.json`:
 |----------|---------|
 | `CLANKER_TRANSPORTS` | Comma-separated transports: `repl`, `discord`, or both |
 | `DISCORD_UNSAFE_ENABLE_WRITES` | Allows Discord-triggered write/delegate actions (unsafe) |
-| `GITHUB_DELEGATE_PROVIDER` | `claude` or `codex` — enables GitHub Actions delegation |
-| `GITHUB_TOKEN` | GitHub PAT with `contents:write` and `pull-requests:write` scope |
-| `GITHUB_WORKFLOW_ID` | Workflow filename, e.g. `clanker-delegate-claude.yml` |
-| `GITHUB_REPO` | `owner/repo` — auto-detected from git remote if not set |
-| `GITHUB_DEFAULT_BRANCH` | Branch to dispatch workflow on (default: `main`) |
+| `GH_DELEGATE_PROVIDER` | `claude` or `codex` — enables GitHub Actions delegation |
+| `GH_TOKEN` | GitHub PAT with `contents:write` and `pull-requests:write` scope |
+| `GH_WORKFLOW_ID` | Workflow filename, e.g. `clanker-delegate-claude.yml` |
+| `GH_REPO` | `owner/repo` — auto-detected from git remote if not set |
+| `GH_DEFAULT_BRANCH` | Branch to dispatch workflow on (default: `main`) |
 | `SHELL_BIN` | Optional shell path override used by command execution |
 
 ### Runtime Tuning Overrides
@@ -231,7 +231,7 @@ agent/
   session.ts        # Session state management
   dispatch/
     types.ts        # DispatchConfig, DispatchResult interfaces
-    config.ts       # loadDispatchConfig() — reads GITHUB_DELEGATE_PROVIDER etc.
+    config.ts       # loadDispatchConfig() — reads GH_DELEGATE_PROVIDER etc.
     dispatcher.ts   # dispatchWorkflow() — POSTs workflow_dispatch to GitHub API
     poller.ts       # startPrPoller() — polls for opened PR, notifies user
   transports/
@@ -267,7 +267,7 @@ $ npm start
 
 Clanker — security-focused agent.
 Enabled transports: repl, discord
-GitHub Actions delegation is not configured (GITHUB_DELEGATE_PROVIDER, GITHUB_TOKEN, GITHUB_WORKFLOW_ID not set).
+GitHub Actions delegation is not configured (GH_DELEGATE_PROVIDER, GH_TOKEN, GH_WORKFLOW_ID not set).
 Type /help for local REPL slash commands.
 
 > list files in current directory

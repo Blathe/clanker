@@ -92,7 +92,7 @@ agent/
   validators.ts     # Input length validation, text truncation
   dispatch/
     types.ts        # DispatchConfig, DispatchResult interfaces
-    config.ts       # loadDispatchConfig() — reads GITHUB_DELEGATE_PROVIDER etc.
+    config.ts       # loadDispatchConfig() — reads GH_DELEGATE_PROVIDER etc.
     dispatcher.ts   # dispatchWorkflow() — POSTs workflow_dispatch to GitHub Actions API
     poller.ts       # startPrPoller() — polls for opened PR and notifies user
   transports/
@@ -122,7 +122,7 @@ The LLM must return one of four JSON shapes (`LLMResponse` in `types.ts`):
 |------|--------|--------|
 | `command` | `command`, `working_dir?`, `explanation` | Runs a shell command through the policy gate |
 | `edit` | `file`, `old`, `new`, `explanation` | Replaces exact text in a file (requires passphrase unless Discord unsafe mode) |
-| `delegate` | `prompt`, `working_dir?`, `explanation` | Triggers a GitHub Actions `workflow_dispatch` event; the workflow runs Claude Code or Codex and opens a PR; Clanker polls for the PR and notifies the user with a link (requires `GITHUB_DELEGATE_PROVIDER`, `GITHUB_TOKEN`, `GITHUB_WORKFLOW_ID`) |
+| `delegate` | `prompt`, `working_dir?`, `explanation` | Triggers a GitHub Actions `workflow_dispatch` event; the workflow runs Claude Code or Codex and opens a PR; Clanker polls for the PR and notifies the user with a link (requires `GH_DELEGATE_PROVIDER`, `GH_TOKEN`, `GH_WORKFLOW_ID`) |
 | `message` | `explanation` | Replies with text only, no action |
 
 Note: only `delegate` responses spawn a GitHub Actions job. `command`, `edit`, and `message` all execute locally and synchronously.
@@ -155,11 +155,11 @@ To generate a new hash: `node -e "const {createHash}=require('crypto'); console.
 | `DISCORD_ALLOWED_USER_IDS` | No | Comma-separated Discord snowflake IDs; empty = any user |
 | `DISCORD_ALLOWED_CHANNEL_IDS` | No | Comma-separated Discord snowflake IDs; empty = any channel |
 | `DISCORD_UNSAFE_ENABLE_WRITES` | No | `1`/`true` = Discord can trigger write/delegate actions (dangerous) |
-| `GITHUB_DELEGATE_PROVIDER` | For delegation | `claude` or `codex`; enables `delegate` action via GitHub Actions |
-| `GITHUB_TOKEN` | For delegation | GitHub PAT with `contents:write` and `pull-requests:write` scope |
-| `GITHUB_REPO` | No | `owner/repo` — auto-detected from `git remote get-url origin` if not set |
-| `GITHUB_WORKFLOW_ID` | For delegation | Workflow filename, e.g. `clanker-delegate-claude.yml` |
-| `GITHUB_DEFAULT_BRANCH` | No | Branch to dispatch workflow on (default: `main`) |
+| `GH_DELEGATE_PROVIDER` | For delegation | `claude` or `codex`; enables `delegate` action via GitHub Actions |
+| `GH_TOKEN` | For delegation | GitHub PAT with `contents:write` and `pull-requests:write` scope |
+| `GH_REPO` | No | `owner/repo` — auto-detected from `git remote get-url origin` if not set |
+| `GH_WORKFLOW_ID` | For delegation | Workflow filename, e.g. `clanker-delegate-claude.yml` |
+| `GH_DEFAULT_BRANCH` | No | Branch to dispatch workflow on (default: `main`) |
 | `SHELL_BIN` | No | Override shell for command execution (default: bash, or Git Bash on Windows) |
 | `CLANKER_CHAT_PROVIDER` | No | Chat provider (default: `openai`; only `openai` currently supported) |
 | `CLANKER_CHAT_MODEL` | No | Model name (default: `gpt-4o`) |
@@ -205,19 +205,19 @@ OPENAI_API_KEY=sk-... npm start
 > create a new directory called foo  # secret-for-write → prompts for passphrase
 
 # With GitHub Actions delegation enabled
-OPENAI_API_KEY=sk-... GITHUB_DELEGATE_PROVIDER=claude GITHUB_TOKEN=ghp_... GITHUB_WORKFLOW_ID=clanker-delegate-claude.yml npm start
+OPENAI_API_KEY=sk-... GH_DELEGATE_PROVIDER=claude GH_TOKEN=ghp_... GH_WORKFLOW_ID=clanker-delegate-claude.yml npm start
 > refactor the auth module           # delegate action → triggers workflow_dispatch → opens PR
 ```
 
 ## Delegation via GitHub Actions
 
-When `GITHUB_DELEGATE_PROVIDER`, `GITHUB_TOKEN`, and `GITHUB_WORKFLOW_ID` are set, the `delegate` action dispatches a `workflow_dispatch` event. No AI code runs in-process — all execution happens on GitHub's infrastructure.
+When `GH_DELEGATE_PROVIDER`, `GH_TOKEN`, and `GH_WORKFLOW_ID` are set, the `delegate` action dispatches a `workflow_dispatch` event. No AI code runs in-process — all execution happens on GitHub's infrastructure.
 
 Only `delegate` responses trigger a job. `command`, `edit`, and `message` responses execute locally without spawning any workflow.
 
 Example flow:
 1. GPT-4o returns a `delegate` response for a complex task
-2. Clanker POSTs `workflow_dispatch` to `GITHUB_WORKFLOW_ID` on the default branch
+2. Clanker POSTs `workflow_dispatch` to `GH_WORKFLOW_ID` on the default branch
 3. The workflow creates branch `clanker/<jobId>`, runs Claude Code or Codex, opens a PR
 4. Clanker polls `GET /repos/{repo}/pulls` every 30s (configurable) and notifies: `✓ PR ready: <title> — <url>`
 5. On timeout (default 30min), notifies with a link to the Actions tab
@@ -232,7 +232,7 @@ Validates:
 - `OPENAI_API_KEY` format (must start with `sk-`)
 - Discord configuration (token, allowlists, unsafe mode flag)
 - Transport configuration (at least one transport must be enabled)
-- `GITHUB_DELEGATE_PROVIDER`, `GITHUB_TOKEN`, `GITHUB_WORKFLOW_ID`, `GITHUB_REPO` format when delegation is configured
+- `GH_DELEGATE_PROVIDER`, `GH_TOKEN`, `GH_WORKFLOW_ID`, `GH_REPO` format when delegation is configured
 - All `CLANKER_*` numeric overrides
 
 ## Security & Testing
