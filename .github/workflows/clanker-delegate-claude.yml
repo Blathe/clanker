@@ -63,6 +63,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: ${{ github.event.inputs.prompt }}
           branch_name_template: ${{ github.event.inputs.branch_name }}
+          github_token: ${{ secrets.GH_TOKEN }}
           additional_permissions: |
             actions: write
           display_report: 'false'
