@@ -60,10 +60,9 @@ jobs:
             --model claude-opus-4-6
             --max-turns 10
 
-      - name: Create PR
-        if: github.event_name == 'workflow_dispatch'
+      - name: Create PR automatically
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.claude_automation.outputs.branch_name }}
         run: |
           gh pr create \
