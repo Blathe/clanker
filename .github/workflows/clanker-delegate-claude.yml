@@ -65,16 +65,9 @@ jobs:
           branch_name_template: ${{ github.event.inputs.branch_name }}
           github_token: ${{ secrets.GH_TOKEN }}
           additional_permissions: |
-            actions: write
+            actions: read
           display_report: 'false'
           claude_args: |
             --model claude-sonnet-4-6
             --max-turns 10
             --allowedTools "Read,LS,Glob,Grep,Edit,MultiEdit,Write"
-
-      - name: Write branch info to summary (workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "### Claude Code run" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Branch: \`${{ steps.claude_automation.outputs.branch_name }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Session: \`${{ steps.claude_automation.outputs.session_id }}\`" >> "$GITHUB_STEP_SUMMARY"
