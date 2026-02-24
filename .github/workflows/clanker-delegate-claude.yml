@@ -9,10 +9,19 @@ on:
     types: [opened, assigned]
   pull_request_review:
     types: [submitted]
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Task prompt for Claude'
+        required: true
+      branch_name:
+        description: 'Branch name for the PR'
+        required: false
 
 jobs:
   claude:
     if: |
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
@@ -35,6 +44,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.prompt || '' }}
           claude_args: |
             --model claude-opus-4-6
             --max-turns 10
